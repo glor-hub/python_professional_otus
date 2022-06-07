@@ -1,1 +1,3 @@
-# python_professional_otus
+### Курс Python.Developer Professional
+#### Репозиторий для домашних заданий по курсу.
+#### Студент: Инна Сорина
