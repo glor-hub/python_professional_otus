@@ -47,10 +47,28 @@ def parse_config(def_config, config_path):
     except configparser.Error:
         raise
 
+
+def search_last_logfile(log_dir):
+    files = os.listdir(log_dir)
+    files_path = [os.path.join(log_dir, file) for file in files]
+
+
+def parse_logfile():
+    pass
+
+
+def create_report():
+    pass
+
+
+def create_report_template():
+    pass
+
+
 def main():
     print('hello')
     config_path = get_config_path()
-    config=parse_config(default_config, config_path)
+    config = parse_config(default_config, config_path)
     print(config)
 
 
