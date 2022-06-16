@@ -10,6 +10,7 @@
 import os
 import argparse
 import configparser
+from collections import namedtuple
 
 default_config = {
     "REPORT_SIZE": 1000,
@@ -19,6 +20,7 @@ default_config = {
 
 DEFAULT_CONFIG_FILE_PATH = os.path.abspath('config.ini')
 
+LastLogFile=namedtuple('LastLogFile', ['path', 'ext', 'date'])
 
 def get_config_path():
     parser = argparse.ArgumentParser()
@@ -49,12 +51,16 @@ def parse_config(def_config, config_path):
 
 
 def search_last_logfile(log_dir):
-    files = os.listdir(log_dir)
-    files_path = [os.path.join(log_dir, file) for file in files]
-
+    # list of files in log_dir
+    file_names = os.listdir(log_dir)
+    # list of files with path
+    files = [os.path.join(log_dir, file_name) for file_name in file_names]
+    return
 
 def parse_logfile():
-    pass
+    file = None
+    file_data = None
+    yield (file, file_date)
 
 
 def create_report():
