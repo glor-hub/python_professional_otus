@@ -6,12 +6,12 @@
 #                     '$status $body_bytes_sent "$http_referer" '
 #                     '"$http_user_agent" "$http_x_forwarded_for" "$http_X_REQUEST_ID" "$http_X_RB_USER" '
 #                     '$request_time';
+import gzip
 import logging
 import os
 import argparse
 import configparser
 import re
-import logging
 from collections import namedtuple
 
 default_config = {
@@ -24,6 +24,7 @@ default_config = {
 DEFAULT_CONFIG_FILE_PATH = os.path.abspath('config.ini')
 LOG_FILE_REGEX = re.compile(r'nginx-access-ui\.log-(\d{8})(\.(gz|plain|txt)?)$')
 LastLogFile = namedtuple('LastLogFile', ['path', 'ext', 'date'])
+LastLogRow = namedtuple('LastLogRow', ['url', 'response_time'])
 
 
 def get_config_path():
@@ -57,7 +58,8 @@ def parse_config(def_config, config_path):
 def search_last_logfile(log_dir, logfile_regex):
     last_log_date = 0
     last_log_file = None
-    last_log_ext = None
+    last_log_file_ext = None
+    last_log_file_path = None
     # list of files in log_dir
     files = os.listdir(log_dir)
     for file in files:
@@ -70,37 +72,83 @@ def search_last_logfile(log_dir, logfile_regex):
         if file_date > last_log_date:
             last_log_date = file_date
             last_log_file = file
-    if last_log_file:
-        logging.info ='Logfile not found'
-    last_log_path = os.path.join(log_dir, last_log_file)
-    last_log_file_ext = os.path.splitext(last_log_path)[1]
+    if not last_log_file:
+        logging.info = 'Logfile not found'
+    else:
+        last_log_file_path = os.path.join(log_dir, last_log_file)
+        last_log_file_ext = os.path.splitext(last_log_file_path)[1]
     return LastLogFile(
-        path=last_log_path,
+        path=last_log_file_path,
         ext=last_log_file_ext,
         date=last_log_date
-           )
-
-def parse_logfile():
-    file = None
-    file_data = None
-    yield (file, file_date)
+    )
 
 
-def create_report():
-    pass
+def gen_parse_logfile(log_file):
+    opener = gzip.open if log_file.ext == '.gz' else open
+    success_parse_count = 0
+    fault_parse_count = 0
+    with opener(log_file.path, 'rt', encoding='utf-8') as file:
+        for row in file:
+            try:
+                row_parts = row.split()
+                url = row_parts[6]
+                response_time = float(row_parts[-1])
+            except Exception:
+                url = None
+                response_time = None
+                logging.error('Can`t parse row %s', row)
+            finally:
+                yield LastLogRow(
+                    url=url,
+                    response_time=response_time
+                )
+
+
+def create_report(log_rows):
+    success_parse_count = 0
+    fault_parse_count = 0
+    sum_time = 0
+    data = {}
+
+    for url, time in log_rows:
+        if url == None or time == None:
+            fault_parse_count += 1
+        else:
+            sum_time += time
+            data[url] = data.get(url, {'time': 0, 'count': 0})
+            data[url]['time'] += time
+            data[url]['count'] += 1
+            success_parse_count += 1
+    sum_count = success_parse_count + fault_parse_count
+    print(data)
 
 
 def create_report_template():
     pass
 
 
+def logging_init():
+    logging.basicConfig(filename="LOGGING_FILE",
+                        format='[%(asctime)s] %(levelname).1s %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S',
+                        level=logging.INFO)
+
+
 def main():
     print('hello')
+    logging_init()
     config_path = get_config_path()
     config = parse_config(default_config, config_path)
     print(config)
-    print(search_last_logfile(config['LOG_DIR'],LOG_FILE_REGEX))
+    log_file = (search_last_logfile(config['LOG_DIR'], LOG_FILE_REGEX))
+    log_parser_generator = gen_parse_logfile(log_file)
+    create_report(log_parser_generator)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        logging.exception("Unexpected error occurred")
+        raise
