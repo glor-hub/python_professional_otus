@@ -104,8 +104,7 @@ def gen_parse_logfile(log_file):
                     response_time=response_time
                 )
 
-
-def create_data(log_rows, err_threshold_perc):
+def calculate_data(log_rows, err_threshold_perc):
     all_count_sum = 0
     fault_count_sum = 0
     all_time_sum = 0
@@ -138,7 +137,7 @@ def create_data(log_rows, err_threshold_perc):
     return sorted_data
 
 
-def create_report_template():
+def create_report():
     pass
 
 
@@ -157,7 +156,7 @@ def main():
     print(config)
     log_file = (search_last_logfile(config['LOG_DIR'], LOG_FILE_REGEX))
     log_parser_generator = gen_parse_logfile(log_file)
-    create_data(log_parser_generator, config['ERROR_THRESHOLD_PERCENT'])
+    calculate_data(log_parser_generator, config['ERROR_THRESHOLD_PERCENT'])
 
 
 if __name__ == "__main__":
