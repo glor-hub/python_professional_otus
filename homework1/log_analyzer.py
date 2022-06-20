@@ -13,6 +13,7 @@ import argparse
 import configparser
 import re
 from collections import namedtuple
+from datetime import datetime
 from statistics import median
 
 default_config = {
@@ -25,6 +26,8 @@ default_config = {
 
 DEFAULT_CONFIG_FILE_PATH = os.path.abspath('config.ini')
 LOG_FILE_REGEX = re.compile(r'nginx-access-ui\.log-(\d{8})(\.(gz|plain|txt)?)$')
+LOG_FILE_DATETIME_FORMAT = '%Y%m%d'
+REPORT_FILE_DATETIME_FORMAT = '%Y.%m.%d'
 LastLogFile = namedtuple('LastLogFile', ['path', 'ext', 'date'])
 LastLogRow = namedtuple('LastLogRow', ['url', 'response_time'])
 
@@ -104,6 +107,7 @@ def gen_parse_logfile(log_file):
                     response_time=response_time
                 )
 
+
 def calculate_data(log_rows, err_threshold_perc):
     all_count_sum = 0
     fault_count_sum = 0
@@ -137,7 +141,14 @@ def calculate_data(log_rows, err_threshold_perc):
     return sorted_data
 
 
-def create_report():
+def get_report_path(log_file, report_dir):
+    log_datetime = datetime.strptime(str(log_file.date), LOG_FILE_DATETIME_FORMAT)
+    file_name = 'report-%s.html' % log_datetime.strftime(REPORT_FILE_DATETIME_FORMAT)
+    file_path=os.path.join(report_dir, file_name)
+    print(file_path)
+
+def create_report(report_dir, report_size, templ_file, data):
+    templ_file_path = report_dir + templ_file
     pass
 
 
@@ -157,6 +168,7 @@ def main():
     log_file = (search_last_logfile(config['LOG_DIR'], LOG_FILE_REGEX))
     log_parser_generator = gen_parse_logfile(log_file)
     calculate_data(log_parser_generator, config['ERROR_THRESHOLD_PERCENT'])
+    get_report_path(log_file, config['REPORT_DIR'])
 
 
 if __name__ == "__main__":
