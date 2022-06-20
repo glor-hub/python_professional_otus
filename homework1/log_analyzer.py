@@ -13,12 +13,14 @@ import argparse
 import configparser
 import re
 from collections import namedtuple
+from statistics import median
 
 default_config = {
     "REPORT_SIZE": 1000,
     "REPORT_DIR": "./reports",
     "LOG_DIR": "./log",
-    "LOGGING_FILE": "log_analyzer.log"
+    "LOGGING_FILE": "log_analyzer.log",
+    "ERROR_THRESHOLD_PERCENT": 10.0
 }
 
 DEFAULT_CONFIG_FILE_PATH = os.path.abspath('config.ini')
@@ -86,8 +88,6 @@ def search_last_logfile(log_dir, logfile_regex):
 
 def gen_parse_logfile(log_file):
     opener = gzip.open if log_file.ext == '.gz' else open
-    success_parse_count = 0
-    fault_parse_count = 0
     with opener(log_file.path, 'rt', encoding='utf-8') as file:
         for row in file:
             try:
@@ -105,23 +105,37 @@ def gen_parse_logfile(log_file):
                 )
 
 
-def create_report(log_rows):
-    success_parse_count = 0
-    fault_parse_count = 0
-    sum_time = 0
+def create_data(log_rows, err_threshold_perc):
+    all_count_sum = 0
+    fault_count_sum = 0
+    all_time_sum = 0
     data = {}
 
     for url, time in log_rows:
+        all_count_sum += 1
         if url == None or time == None:
-            fault_parse_count += 1
+            fault_count_sum += 1
         else:
-            sum_time += time
-            data[url] = data.get(url, {'time': 0, 'count': 0})
-            data[url]['time'] += time
+            all_time_sum += time
+            data[url] = data.get(url, {'count': 0, 'time_sum': 0, 'time_list': []})
             data[url]['count'] += 1
-            success_parse_count += 1
-    sum_count = success_parse_count + fault_parse_count
-    print(data)
+            data[url]['time_sum'] += time
+            data[url]['time_list'].append(time)
+
+    for url in data.keys():
+        data[url]['count_perc'] = (data[url]['count'] / all_count_sum) * 100.0
+        data[url]['time_perc'] = (data[url]['time_sum'] / all_time_sum) * 100.0
+        data[url]['time_avg'] = data[url]['time_sum'] / data[url]['count']
+        data[url]['time_max'] = max(data[url]['time_list'])
+        data[url]['time_med'] = median(data[url]['time_list'])
+        del data[url]['time_list']
+    sorted_data = sorted(data.values(), key=lambda x: x['time_sum'], reverse=True)
+    error_parse_perc = (fault_count_sum / all_count_sum) * 100.0
+    if error_parse_perc > float(err_threshold_perc):
+        logging.error("Error")
+        raise Exception
+    print(sorted_data[0])
+    return sorted_data
 
 
 def create_report_template():
@@ -143,7 +157,7 @@ def main():
     print(config)
     log_file = (search_last_logfile(config['LOG_DIR'], LOG_FILE_REGEX))
     log_parser_generator = gen_parse_logfile(log_file)
-    create_report(log_parser_generator)
+    create_data(log_parser_generator, config['ERROR_THRESHOLD_PERCENT'])
 
 
 if __name__ == "__main__":
