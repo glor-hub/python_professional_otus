@@ -160,6 +160,8 @@ def get_template_path(report_dir):
 
 
 def create_report(report_path, template_path, data):
+    if os.path.exists(report_path):
+        return
     with open(template_path, 'rt', encoding='utf-8') as src:
         template = Template(src.read())
         new_template = template.safe_substitute(table_json=json.dumps(data))
