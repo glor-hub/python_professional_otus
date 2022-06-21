@@ -7,6 +7,7 @@
 #                     '"$http_user_agent" "$http_x_forwarded_for" "$http_X_REQUEST_ID" "$http_X_RB_USER" '
 #                     '$request_time';
 import gzip
+import json
 import logging
 import os
 import argparse
@@ -15,6 +16,7 @@ import re
 from collections import namedtuple
 from datetime import datetime
 from statistics import median
+from string import Template
 
 default_config = {
     "REPORT_SIZE": 1000,
@@ -108,12 +110,12 @@ def gen_parse_logfile(log_file):
                 )
 
 
-def calculate_data(log_rows, err_threshold_perc):
+def calculate_data(log_rows, err_threshold_perc, rows_sum):
     all_count_sum = 0
     fault_count_sum = 0
     all_time_sum = 0
     data = {}
-
+    rows_count = 0
     for url, time in log_rows:
         all_count_sum += 1
         if url == None or time == None:
@@ -126,12 +128,16 @@ def calculate_data(log_rows, err_threshold_perc):
             data[url]['time_list'].append(time)
 
     for url in data.keys():
-        data[url]['count_perc'] = (data[url]['count'] / all_count_sum) * 100.0
-        data[url]['time_perc'] = (data[url]['time_sum'] / all_time_sum) * 100.0
-        data[url]['time_avg'] = data[url]['time_sum'] / data[url]['count']
-        data[url]['time_max'] = max(data[url]['time_list'])
-        data[url]['time_med'] = median(data[url]['time_list'])
-        del data[url]['time_list']
+        if (rows_count <= int(rows_sum)):
+            data[url]['url'] = url
+            data[url]['time_sum'] = round(data[url]['time_sum'], 3)
+            data[url]['count_perc'] = round((data[url]['count'] / all_count_sum) * 100.0, 3)
+            data[url]['time_perc'] = round((data[url]['time_sum'] / all_time_sum) * 100.0, 3)
+            data[url]['time_avg'] = round(data[url]['time_sum'] / data[url]['count'], 3)
+            data[url]['time_max'] = round(max(data[url]['time_list']), 3)
+            data[url]['time_med'] = round(median(data[url]['time_list']), 3)
+            del data[url]['time_list']
+
     sorted_data = sorted(data.values(), key=lambda x: x['time_sum'], reverse=True)
     error_parse_perc = (fault_count_sum / all_count_sum) * 100.0
     if error_parse_perc > float(err_threshold_perc):
@@ -144,12 +150,22 @@ def calculate_data(log_rows, err_threshold_perc):
 def get_report_path(log_file, report_dir):
     log_datetime = datetime.strptime(str(log_file.date), LOG_FILE_DATETIME_FORMAT)
     file_name = 'report-%s.html' % log_datetime.strftime(REPORT_FILE_DATETIME_FORMAT)
-    file_path=os.path.join(report_dir, file_name)
-    print(file_path)
+    file_path = os.path.join(report_dir, file_name)
+    return file_path
 
-def create_report(report_dir, report_size, templ_file, data):
-    templ_file_path = report_dir + templ_file
-    pass
+
+def get_template_path(report_dir):
+    template_path = os.path.join(report_dir, 'report.html')
+    return template_path
+
+
+def create_report(report_path, template_path, data):
+    with open(template_path, 'rt', encoding='utf-8') as src:
+        template = Template(src.read())
+        new_template = template.safe_substitute(table_json=json.dumps(data))
+
+    with open(report_path, 'w', encoding='utf-8') as dst:
+        dst.write(new_template)
 
 
 def logging_init():
@@ -167,8 +183,10 @@ def main():
     print(config)
     log_file = (search_last_logfile(config['LOG_DIR'], LOG_FILE_REGEX))
     log_parser_generator = gen_parse_logfile(log_file)
-    calculate_data(log_parser_generator, config['ERROR_THRESHOLD_PERCENT'])
-    get_report_path(log_file, config['REPORT_DIR'])
+    data = calculate_data(log_parser_generator, config['ERROR_THRESHOLD_PERCENT'], config['REPORT_SIZE'])
+    report_file = get_report_path(log_file, config['REPORT_DIR'])
+    template_file = get_template_path(config['REPORT_DIR'])
+    create_report(report_file, template_file, data)
 
 
 if __name__ == "__main__":
