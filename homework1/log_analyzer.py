@@ -128,17 +128,16 @@ def calculate_data(log_rows, err_threshold_perc, rows_sum):
             data[url]['time_list'].append(time)
 
     for url in data.keys():
-        if (rows_count <= int(rows_sum)):
-            data[url]['url'] = url
-            data[url]['time_sum'] = round(data[url]['time_sum'], 3)
-            data[url]['count_perc'] = round((data[url]['count'] / all_count_sum) * 100.0, 3)
-            data[url]['time_perc'] = round((data[url]['time_sum'] / all_time_sum) * 100.0, 3)
-            data[url]['time_avg'] = round(data[url]['time_sum'] / data[url]['count'], 3)
-            data[url]['time_max'] = round(max(data[url]['time_list']), 3)
-            data[url]['time_med'] = round(median(data[url]['time_list']), 3)
-            del data[url]['time_list']
+        data[url]['url'] = url
+        data[url]['time_sum'] = round(data[url]['time_sum'], 3)
+        data[url]['count_perc'] = round((data[url]['count'] / all_count_sum) * 100.0, 3)
+        data[url]['time_perc'] = round((data[url]['time_sum'] / all_time_sum) * 100.0, 3)
+        data[url]['time_avg'] = round(data[url]['time_sum'] / data[url]['count'], 3)
+        data[url]['time_max'] = round(max(data[url]['time_list']), 3)
+        data[url]['time_med'] = round(median(data[url]['time_list']), 3)
+        del data[url]['time_list']
 
-    sorted_data = sorted(data.values(), key=lambda x: x['time_sum'], reverse=True)
+    sorted_data = (sorted(data.values(), key=lambda x: x['time_sum'], reverse=True))[:int(rows_sum)]
     error_parse_perc = (fault_count_sum / all_count_sum) * 100.0
     if error_parse_perc > float(err_threshold_perc):
         logging.error("Error")
