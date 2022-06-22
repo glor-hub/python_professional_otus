@@ -36,3 +36,6 @@ python log_analyzer.py
 ```
 python -m unittest -v test_log_analyzer
 ```
+
+### Журнал логов
+- Скрипт пишет логи в файл "log_analyzer.log" в корне проекта.
