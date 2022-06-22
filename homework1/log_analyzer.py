@@ -35,6 +35,7 @@ LastLogRow = namedtuple('LastLogRow', ['url', 'response_time'])
 
 
 def get_config_path():
+    # parse the command line to get config path
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--config',
@@ -48,6 +49,7 @@ def get_config_path():
 
 
 def parse_config(def_config, config_path):
+    # update config from config file
     parser = configparser.ConfigParser()
     parser.read(config_path)
     config = def_config.copy()
@@ -63,6 +65,7 @@ def parse_config(def_config, config_path):
 
 
 def search_last_logfile(log_dir, logfile_regex):
+    # parse filenames in log directory and find last created file
     last_log_date = 0
     last_log_file = None
     last_log_file_ext = None
@@ -92,6 +95,7 @@ def search_last_logfile(log_dir, logfile_regex):
 
 
 def gen_parse_logfile(log_file):
+    # function-generator parse log file content and yeild url and response time from log rows
     opener = gzip.open if log_file.ext == '.gz' else open
     with opener(log_file.path, 'rt', encoding='utf-8') as file:
         for row in file:
@@ -111,11 +115,11 @@ def gen_parse_logfile(log_file):
 
 
 def calculate_data(log_rows, err_threshold_perc, rows_sum):
+    # data processing for create report
     all_count_sum = 0
     fault_count_sum = 0
     all_time_sum = 0
     data = {}
-    rows_count = 0
     for url, time in log_rows:
         all_count_sum += 1
         if url == None or time == None:
@@ -147,6 +151,7 @@ def calculate_data(log_rows, err_threshold_perc, rows_sum):
 
 
 def get_report_path(log_file, report_dir):
+    # generate file name and path for html-report
     log_datetime = datetime.strptime(str(log_file.date), LOG_FILE_DATETIME_FORMAT)
     file_name = 'report-%s.html' % log_datetime.strftime(REPORT_FILE_DATETIME_FORMAT)
     file_path = os.path.join(report_dir, file_name)
@@ -154,11 +159,13 @@ def get_report_path(log_file, report_dir):
 
 
 def get_template_path(report_dir):
+    # return path for html-template
     template_path = os.path.join(report_dir, 'report.html')
     return template_path
 
 
 def create_report(report_path, template_path, data):
+    # render template with use template and obtained data
     if os.path.exists(report_path):
         return
     with open(template_path, 'rt', encoding='utf-8') as src:
@@ -170,6 +177,7 @@ def create_report(report_path, template_path, data):
 
 
 def logging_init():
+    # initialize script logging
     logging.basicConfig(filename="LOGGING_FILE",
                         format='[%(asctime)s] %(levelname).1s %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S',
