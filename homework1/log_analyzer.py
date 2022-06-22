@@ -83,7 +83,7 @@ def search_last_logfile(log_dir, logfile_regex):
             last_log_date = file_date
             last_log_file = file
     if not last_log_file:
-        logging.info = 'Logfile not found'
+        return
     else:
         last_log_file_path = os.path.join(log_dir, last_log_file)
         last_log_file_ext = os.path.splitext(last_log_file_path)[1]
@@ -92,6 +92,16 @@ def search_last_logfile(log_dir, logfile_regex):
         ext=last_log_file_ext,
         date=last_log_date
     )
+
+
+def logfile_is_empty(log_file):
+    flag_empty = True
+    opener = gzip.open if log_file.ext == '.gz' else open
+    with opener(log_file.path, 'rt', encoding='utf-8') as file:
+        for row in file:
+            if len(row) > 1:
+                flag_empty = False
+    return flag_empty
 
 
 def gen_parse_logfile(log_file):
@@ -112,6 +122,7 @@ def gen_parse_logfile(log_file):
                     url=url,
                     response_time=response_time
                 )
+        return
 
 
 def calculate_data(log_rows, err_threshold_perc, rows_sum):
@@ -141,12 +152,14 @@ def calculate_data(log_rows, err_threshold_perc, rows_sum):
         data[url]['time_med'] = round(median(data[url]['time_list']), 3)
         del data[url]['time_list']
 
+    logging.info('%d rows calculated' % len(data))
     sorted_data = (sorted(data.values(), key=lambda x: x['time_sum'], reverse=True))[:int(rows_sum)]
     error_parse_perc = (fault_count_sum / all_count_sum) * 100.0
+    error_parse_perc = 85
     if error_parse_perc > float(err_threshold_perc):
-        logging.error("Error")
+        logging.error("Error percentage threshold %2.2f exceeded. Current error percentage: %2.2f."
+                      % (err_threshold_perc, error_parse_perc))
         raise Exception
-    print(sorted_data[0])
     return sorted_data
 
 
@@ -176,23 +189,32 @@ def create_report(report_path, template_path, data):
         dst.write(new_template)
 
 
-def logging_init():
+def logging_init(logging_file):
     # initialize script logging
-    logging.basicConfig(filename="LOGGING_FILE",
+    logging.basicConfig(filename=logging_file,
                         format='[%(asctime)s] %(levelname).1s %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S',
                         level=logging.INFO)
 
 
 def main():
-    print('hello')
-    logging_init()
     config_path = get_config_path()
     config = parse_config(default_config, config_path)
-    print(config)
+    logging_init(config['LOGGING_FILE'])
+    logging.info('Config = %s', repr(config))
+    logging.info('Start search latest Logfile in dir %s' % config['LOG_DIR'])
     log_file = (search_last_logfile(config['LOG_DIR'], LOG_FILE_REGEX))
+    if not log_file:
+        logging.info('Logfile not found')
+        return
+    if logfile_is_empty(log_file):
+        logging.info('Logfile is empty')
+        return
+    logging.info('Latest Logfile: %s' % repr(log_file.path))
     log_parser_generator = gen_parse_logfile(log_file)
+    logging.info('Start calculating')
     data = calculate_data(log_parser_generator, config['ERROR_THRESHOLD_PERCENT'], config['REPORT_SIZE'])
+    logging.info('%d rows calculated' % len(data))
     report_file = get_report_path(log_file, config['REPORT_DIR'])
     template_file = get_template_path(config['REPORT_DIR'])
     create_report(report_file, template_file, data)
