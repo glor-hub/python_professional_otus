@@ -44,7 +44,6 @@ def get_config_path():
     )
     args = parser.parse_args()
     config_path = args.config
-    print("config_path:", config_path)
     return config_path
 
 
