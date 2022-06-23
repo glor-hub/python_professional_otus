@@ -65,7 +65,7 @@ def parse_config(def_config, config_path):
 
 
 def search_last_logfile(log_dir, logfile_regex):
-    # parse filenames in log directory and find last created file
+    # parse objects in log directory and find last created file
     last_log_date = 0
     last_log_file = None
     last_log_file_ext = None
@@ -165,8 +165,16 @@ def calculate_data(log_rows, err_threshold_perc, rows_sum):
 
 def get_report_path(log_file, report_dir):
     # generate file name and path for html-report
-    log_datetime = datetime.strptime(str(log_file.date), LOG_FILE_DATETIME_FORMAT)
-    file_name = 'report-%s.html' % log_datetime.strftime(REPORT_FILE_DATETIME_FORMAT)
+    try:
+        log_datetime = datetime.strptime(str(log_file.date), LOG_FILE_DATETIME_FORMAT)
+    except Exception:
+        logging.error('Can`t parse string %s to datetime object', str(log_file.date))
+        raise
+    try:
+        file_name = 'report-%s.html' % log_datetime.strftime(REPORT_FILE_DATETIME_FORMAT)
+    except Exception:
+        logging.error('Can`t parse string %s to datetime object', str(log_file.date))
+        raise
     file_path = os.path.join(report_dir, file_name)
     return file_path
 
@@ -174,19 +182,27 @@ def get_report_path(log_file, report_dir):
 def get_template_path(report_dir):
     # return path for html-template
     template_path = os.path.join(report_dir, 'report.html')
+    if not os.path.isfile(template_path):
+        logging.error('Template file %s not found' % repr(template_path))
+        raise Exception
     return template_path
 
 
 def create_report(report_path, template_path, data):
     # render template with use template and obtained data
+    report_generated = False
     if os.path.exists(report_path):
-        return
-    with open(template_path, 'rt', encoding='utf-8') as src:
-        template = Template(src.read())
-        new_template = template.safe_substitute(table_json=json.dumps(data))
-
-    with open(report_path, 'w', encoding='utf-8') as dst:
-        dst.write(new_template)
+        logging.info('Report %s already exist.' % repr(report_path))
+        return report_generated
+    try:
+        with open(template_path, 'rt', encoding='utf-8') as src:
+            template = Template(src.read())
+            new_template = template.safe_substitute(table_json=json.dumps(data))
+        with open(report_path, 'w', encoding='utf-8') as dst:
+            dst.write(new_template)
+    except Exception:
+        logging.error('Error occurred while creating %s', repr(report_path))
+        raise
 
 
 def logging_init(logging_file):
@@ -217,7 +233,11 @@ def main():
     logging.info('%d rows calculated' % len(data))
     report_file = get_report_path(log_file, config['REPORT_DIR'])
     template_file = get_template_path(config['REPORT_DIR'])
-    create_report(report_file, template_file, data)
+    logging.info('Start creating report')
+    report_generated = create_report(report_file, template_file, data)
+    if not report_generated:
+        return
+    logging.info('New report %s created' % repr(report_file))
 
 
 if __name__ == "__main__":
