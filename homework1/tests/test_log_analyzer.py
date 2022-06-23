@@ -3,7 +3,7 @@ import unittest
 import log_analyzer
 
 
-class GetConfigPathTestCase(unittest.TestCase):
+class GetParseConfigTestCase(unittest.TestCase):
     def setUp(self):
         self.test_config = {
             "TEST_REPORT_SIZE": 5,
