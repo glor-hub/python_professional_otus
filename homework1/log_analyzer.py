@@ -22,7 +22,7 @@ default_config = {
     "REPORT_SIZE": 1000,
     "REPORT_DIR": "./reports",
     "LOG_DIR": "./log",
-    "LOGGING_FILE": "log_analyzer.log",
+    # "LOGGING_FILE": "log_analyzer.log",
     "ERROR_THRESHOLD_PERCENT": 10.0
 }
 
@@ -155,7 +155,7 @@ def calculate_data(log_rows, err_threshold_perc, rows_sum):
     logging.info('%d rows calculated' % len(data))
     sorted_data = (sorted(data.values(), key=lambda x: x['time_sum'], reverse=True))[:int(rows_sum)]
     error_parse_perc = (fault_count_sum / all_count_sum) * 100.0
-    error_parse_perc = 85
+    # error_parse_perc = 85
     if error_parse_perc > float(err_threshold_perc):
         logging.error("Error percentage threshold %2.2f exceeded. Current error percentage: %2.2f."
                       % (err_threshold_perc, error_parse_perc))
@@ -175,8 +175,21 @@ def get_report_path(log_file, report_dir):
     except Exception:
         logging.error('Can`t parse string %s to datetime object', str(log_file.date))
         raise
-    file_path = os.path.join(report_dir, file_name)
+    try:
+        file_path = os.path.join(report_dir, file_name)
+    except Exception:
+        logging.error('Report directory not found')
+        raise
     return file_path
+
+
+def report_is_existed(report_path):
+    if os.path.exists(report_path):
+        logging.info('Report %s already exist.' % repr(report_path))
+        report_generated = True
+    else:
+        report_generated = False
+    return report_generated
 
 
 def get_template_path(report_dir):
@@ -190,10 +203,6 @@ def get_template_path(report_dir):
 
 def create_report(report_path, template_path, data):
     # render template with use template and obtained data
-    report_generated = False
-    if os.path.exists(report_path):
-        logging.info('Report %s already exist.' % repr(report_path))
-        return report_generated
     try:
         with open(template_path, 'rt', encoding='utf-8') as src:
             template = Template(src.read())
@@ -216,9 +225,12 @@ def logging_init(logging_file):
 def main():
     config_path = get_config_path()
     config = parse_config(default_config, config_path)
-    logging_init(config['LOGGING_FILE'])
-    logging.info('Config = %s', repr(config))
-    logging.info('Start search latest Logfile in dir %s' % config['LOG_DIR'])
+    try:
+        logging_init(config['LOGGING_FILE'])
+    except Exception:
+        logging_init(None)
+    logging.info('Config = %s' % config)
+    logging.info('Start search latest Logfile in dir %s' % repr(config['LOG_DIR']))
     log_file = (search_last_logfile(config['LOG_DIR'], LOG_FILE_REGEX))
     if not log_file:
         logging.info('Logfile not found')
@@ -228,15 +240,19 @@ def main():
         return
     logging.info('Latest Logfile: %s' % repr(log_file.path))
     log_parser_generator = gen_parse_logfile(log_file)
+    try:
+        report_file = get_report_path(log_file, config['REPORT_DIR'])
+    except Exception:
+        logging.error('Report directory not found')
+        raise
+    template_file = get_template_path(config['REPORT_DIR'])
+    if report_is_existed(report_file):
+        return
     logging.info('Start calculating')
     data = calculate_data(log_parser_generator, config['ERROR_THRESHOLD_PERCENT'], config['REPORT_SIZE'])
     logging.info('%d rows calculated' % len(data))
-    report_file = get_report_path(log_file, config['REPORT_DIR'])
-    template_file = get_template_path(config['REPORT_DIR'])
     logging.info('Start creating report')
-    report_generated = create_report(report_file, template_file, data)
-    if not report_generated:
-        return
+    create_report(report_file, template_file, data)
     logging.info('New report %s created' % repr(report_file))
 
 
