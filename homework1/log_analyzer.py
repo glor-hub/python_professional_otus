@@ -67,8 +67,6 @@ def search_last_logfile(log_dir, logfile_regex):
     # parse objects in log directory and find last created file
     last_log_date = 0
     last_log_file = None
-    last_log_file_ext = None
-    last_log_file_path = None
     # list of files in log_dir
     files = os.listdir(log_dir)
     for file in files:
