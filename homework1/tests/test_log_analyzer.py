@@ -11,26 +11,41 @@ class GetParseConfigTestCase(unittest.TestCase):
             "TEST_LOG_DIR": "./tests/log",
             "TEST_ERROR_THRESHOLD_PERCENT": 18.0
         }
-        self.INVALID_CONFIG_FILE_PATH = ''
+        self.TEST_INVALID_CONFIG_FILE_PATH = ''
+        self.TEST_EMPTY_CONFIG_FILE = 'invalid_config.ini'
+        self.TEST_VALID_CONFIG_FILE = 'valid_config.ini'
+        self.TEST_CONFIG_DIR = '.test/config'
+        os.mkdir(self.TEST_CONFIG_DIR)
+
+    def tearDown(self):
+        os.rmdir(self.TEST_CONFIG_DIR)
 
     def test_default_config_path(self):
         config_path = log_analyzer.get_config_path()
         self.assertEqual(config_path, log_analyzer.DEFAULT_CONFIG_FILE_PATH)
 
-    def test_parse_config_with_invalid_path(self):
+    def test_failed_parse_config_with_invalid_path(self):
         with self.assertRaises(Exception):
-            log_analyzer.parse_config(self.test_config, self.INVALID_CONFIG_FILE_PATH)
+            log_analyzer.parse_config(self.test_config, self.TEST_INVALID_CONFIG_FILE_PATH)
 
-    def test_parse_config_with_invalid_path(self):
+    #
+    def test_failed_parse_config_with_invalid_content_file(self):
+        f = open(os.path.join(self.TEST_CONFIG_DIR, self.TEST_EMPTY_CONFIG_FILE), "x")
+        f.close()
         with self.assertRaises(Exception):
-            log_analyzer.parse_config(self.test_config, os.path.abspath('./tests/invalid_config.ini'))
+            log_analyzer.parse_config(self.test_config,
+                                      os.path.join(self.TEST_CONFIG_DIR, self.TEST_EMPTY_CONFIG_FILE))
 
-    def test_update_config_from_file(self):
-        config = log_analyzer.parse_config(self.test_config, os.path.abspath('./tests/test_config.ini'))
+    def test_parse_config_with_valid_content_file(self):
+        with open(os.path.join(self.TEST_CONFIG_DIR, self.TEST_VALID_CONFIG_FILE), "w") as f:
+            f.write('[log_analyzer]')
+            f.write('TEST_REPORT_SIZE = 25')
+        config = log_analyzer.parse_config(self.test_config,
+                                           os.path.join(self.TEST_CONFIG_DIR, self.TEST_VALID_CONFIG_FILE))
         self.assertEqual(config['TEST_REPORT_SIZE'], '25')
 
 
-class SearchLastLogfileTestCase(unittest.TestCase):
+class SearchLastLogFileTestCase(unittest.TestCase):
     def setUp(self):
         self.test_config = {
             "TEST_REPORT_SIZE": 5,
@@ -73,6 +88,21 @@ class SearchLastLogfileTestCase(unittest.TestCase):
         last_log_file = log_analyzer.search_last_logfile(self.test_config['TEST_LOG_DIR']
                                                          , log_analyzer.LOG_FILE_REGEX)
         self.assertIsNotNone(last_log_file)
+
+
+class GenParseLogFileTestCase(unittest.TestCase):
+    def setUp(self):
+        self.test_config = {
+            "TEST_REPORT_SIZE": 5,
+            "TEST_REPORT_DIR": "./tests/report",
+            "TEST_LOG_DIR": "./tests/log",
+            "TEST_ERROR_THRESHOLD_PERCENT": 18.0
+        }
+        self.TEST_SAMPLE_LOG_FILE = 'nginx-access-ui.log-20160123.gz'
+        os.mkdir(self.test_config['TEST_LOG_DIR'])
+
+    def tearDown(self):
+        os.rmdir(self.test_config['TEST_LOG_DIR'])
 
 
 if __name__ == '__main__':
