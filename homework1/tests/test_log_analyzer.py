@@ -89,6 +89,21 @@ class SearchLastLogFileTestCase(unittest.TestCase):
                                                          , log_analyzer.LOG_FILE_REGEX)
         self.assertIsNotNone(last_log_file)
 
+    def test_get_latest_logfile(self):
+        filenames = (
+            'nginx-access-ui.log-20220101.gz',
+            'nginx-access-ui.log-20220102.gz',
+            'nginx-access-ui.log-20220103.gz'
+        )
+        for filename in filenames:
+            f = open(os.path.join(self.test_config['TEST_LOG_DIR'], file), "x")
+            f.close()
+        last_log_file = log_analyzer.search_last_logfile(self.test_config['TEST_LOG_DIR']
+                                                         , log_analyzer.LOG_FILE_REGEX)
+        self.assertEqual(
+            last_log_file.date,
+            '20220103'
+        )
 
 class GenParseLogFileTestCase(unittest.TestCase):
     def setUp(self):
