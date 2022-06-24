@@ -96,7 +96,7 @@ def logfile_is_empty(log_file):
     opener = gzip.open if log_file.ext == '.gz' else open
     with opener(log_file.path, 'rt', encoding='utf-8') as file:
         for row in file:
-            if len(row) > 1:
+            if len(row) > 3:
                 flag_empty = False
     return flag_empty
 
@@ -107,7 +107,7 @@ def gen_parse_logfile(log_file):
     with opener(log_file.path, 'rt', encoding='utf-8') as file:
         for row in file:
             try:
-                row_parts = row.split()
+                row_parts = row.strip().split()
                 url = row_parts[6]
                 response_time = float(row_parts[-1])
             except Exception:
