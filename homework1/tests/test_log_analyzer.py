@@ -113,7 +113,7 @@ class GenParseLogFileTestCase(unittest.TestCase):
             "TEST_LOG_DIR": "./tests/log",
             "TEST_ERROR_THRESHOLD_PERCENT": 18.0
         }
-        self.TEST_SAMPLE_LOG_FILE = 'nginx-access-ui.log-20160123.gz'
+        self.TEST_SAMPLE_LOG_FILE = 'nginx-access-ui.log-20160123.txt'
         os.mkdir(self.test_config['TEST_LOG_DIR'])
 
     def tearDown(self):
