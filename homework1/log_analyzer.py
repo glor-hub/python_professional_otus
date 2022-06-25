@@ -22,8 +22,8 @@ default_config = {
     "REPORT_SIZE": 1000,
     "REPORT_DIR": "./reports",
     "LOG_DIR": "./log",
-    # "LOGGING_FILE": "log_analyzer.log",
-    "ERROR_THRESHOLD_PERCENT": 10.0
+    "LOGGING_FILE": "log_analyzer.log",
+    "ERROR_THRESHOLD_PERCENT": 12
 }
 
 DEFAULT_CONFIG_FILE_PATH = os.path.abspath('config.ini')
@@ -153,6 +153,10 @@ def calculate_data(log_rows, err_threshold_perc, rows_sum):
     sorted_data = (sorted(data.values(), key=lambda x: x['time_sum'], reverse=True))[:int(rows_sum)]
     error_parse_perc = (fault_count_sum / all_count_sum) * 100.0
     # error_parse_perc = 85
+    if err_threshold_perc < 0:
+        logging.error("err_threshold_perc %2.2f must be positive."
+                      % (err_threshold_perc, error_parse_perc))
+        raise Exception
     if error_parse_perc > float(err_threshold_perc):
         logging.error("Error percentage threshold %2.2f exceeded. Current error percentage: %2.2f."
                       % (err_threshold_perc, error_parse_perc))
