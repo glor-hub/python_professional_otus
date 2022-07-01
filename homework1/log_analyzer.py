@@ -91,16 +91,6 @@ def search_last_logfile(log_dir, logfile_regex):
     )
 
 
-def logfile_is_empty(log_file):
-    flag_empty = True
-    opener = gzip.open if log_file.ext == '.gz' else open
-    with opener(log_file.path, 'rt', encoding='utf-8') as file:
-        for row in file:
-            if len(row) > 3:
-                flag_empty = False
-    return flag_empty
-
-
 def gen_parse_logfile(log_file):
     # function-generator parse log file content and yeild url and response time from log rows
     opener = gzip.open if log_file.ext == '.gz' else open
@@ -171,35 +161,9 @@ def get_report_path(log_file, report_dir):
     except Exception:
         logging.error('Can`t parse string %s to datetime object', str(log_file.date))
         raise
-    try:
-        file_name = 'report-%s.html' % log_datetime.strftime(REPORT_FILE_DATETIME_FORMAT)
-    except Exception:
-        logging.error('Can`t parse string %s to datetime object', str(log_file.date))
-        raise
-    try:
-        file_path = os.path.join(report_dir, file_name)
-    except Exception:
-        logging.error('Report directory not found')
-        raise
+    file_name = 'report-%s.html' % log_datetime.strftime(REPORT_FILE_DATETIME_FORMAT)
+    file_path = os.path.join(report_dir, file_name)
     return file_path
-
-
-def report_is_existed(report_path):
-    if os.path.exists(report_path):
-        logging.info('Report %s already exist.' % repr(report_path))
-        report_generated = True
-    else:
-        report_generated = False
-    return report_generated
-
-
-def get_template_path(report_dir):
-    # return path for html-template
-    template_path = os.path.join(report_dir, 'report.html')
-    if not os.path.isfile(template_path):
-        logging.error('Template file %s not found' % repr(template_path))
-        raise Exception
-    return template_path
 
 
 def create_report(report_path, template_path, data):
@@ -236,7 +200,7 @@ def main():
     if not log_file:
         logging.info('Logfile not found')
         return
-    if logfile_is_empty(log_file):
+    if not os.path.getsize(log_file.path):
         logging.info('Logfile is empty')
         return
     logging.info('Latest Logfile: %s' % repr(log_file.path))
@@ -246,8 +210,12 @@ def main():
     except Exception:
         logging.error('Report directory not found')
         raise
-    template_file = get_template_path(config['REPORT_DIR'])
-    if report_is_existed(report_file):
+    template_file = os.path.join(config['REPORT_DIR'], 'report.html')
+    if not os.path.isfile(template_file):
+        logging.error('Template file %s not found' % repr(template_file))
+        raise Exception
+    if os.path.exists(report_file):
+        logging.info('Report %s already exist.' % repr(report_file))
         return
     logging.info('Start calculating')
     data = calculate_data(log_parser_generator, config['ERROR_THRESHOLD_PERCENT'], config['REPORT_SIZE'])
