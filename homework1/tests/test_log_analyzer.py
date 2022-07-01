@@ -1,23 +1,22 @@
-import json
 import os
 import unittest
-from homework1 import log_analyzer
+import log_analyzer
 
-TEST_FIXTURE_DIR = "./fixture"
+TEST_FIXTURE_DIR = "tests/fixture"
 
 
 class GetParseConfigTestCase(unittest.TestCase):
     def setUp(self):
         self.test_config = {
             "TEST_REPORT_SIZE": 5,
-            "TEST_REPORT_DIR": "./report",
-            "TEST_LOG_DIR": "./log",
+            "TEST_REPORT_DIR": "tests/report",
+            "TEST_LOG_DIR": "tests/log",
             "TEST_ERROR_THRESHOLD_PERCENT": 18.0
         }
         self.TEST_INVALID_CONFIG_FILE_PATH = ''
         self.TEST_EMPTY_CONFIG_FILE = 'invalid_config.ini'
         self.TEST_VALID_CONFIG_FILE = 'valid_config.ini'
-        self.TEST_CONFIG_DIR = "./config"
+        self.TEST_CONFIG_DIR = "tests/config"
         os.mkdir(self.TEST_CONFIG_DIR)
 
     def tearDown(self):
@@ -54,8 +53,8 @@ class SearchLastLogFileTestCase(unittest.TestCase):
     def setUp(self):
         self.test_config = {
             "TEST_REPORT_SIZE": 5,
-            "TEST_REPORT_DIR": "./report",
-            "TEST_LOG_DIR": "./log",
+            "TEST_REPORT_DIR": "tests/report",
+            "TEST_LOG_DIR": "tests/log",
             "TEST_ERROR_THRESHOLD_PERCENT": 18.0
         }
         self.TEST_INVALID_LOG_FILE_NAME = '123.gz'
@@ -67,13 +66,6 @@ class SearchLastLogFileTestCase(unittest.TestCase):
         for filename in os.listdir(self.test_config['TEST_LOG_DIR']):
             os.remove(os.path.join(self.test_config['TEST_LOG_DIR'], filename))
         os.rmdir(self.test_config['TEST_LOG_DIR'])
-
-    def test_log_file_is_empty(self):
-        f = open(os.path.join(self.test_config['TEST_LOG_DIR'], self.TEST_EMPTY_LOG_FILE), "x")
-        f.close()
-        last_log_file = log_analyzer.search_last_logfile(self.test_config['TEST_LOG_DIR'], log_analyzer.LOG_FILE_REGEX)
-        logfile_is_empty = log_analyzer.logfile_is_empty(last_log_file)
-        self.assertEqual(logfile_is_empty, True)
 
     def test_log_file_invalid_ext(self):
         f = open(os.path.join(self.test_config['TEST_LOG_DIR'], self.TEST_INVALID_LOG_FILE_EXT), "x")
@@ -112,8 +104,8 @@ class GenParseLogFileTestCase(unittest.TestCase):
     def setUp(self):
         self.test_config = {
             "TEST_REPORT_SIZE": 5,
-            "TEST_REPORT_DIR": "./report",
-            "TEST_LOG_DIR": "./log",
+            "TEST_REPORT_DIR": "tests/report",
+            "TEST_LOG_DIR": "tests/log",
             "TEST_ERROR_THRESHOLD_PERCENT": 18.0
         }
         self.TEST_SAMPLE_LOG_FILE = 'nginx-access-ui.log-20170629.txt'
@@ -136,8 +128,8 @@ class CalculateDataTestCase(unittest.TestCase):
     def setUp(self):
         self.test_config = {
             "TEST_REPORT_SIZE": 5,
-            "TEST_REPORT_DIR": "./report",
-            "TEST_LOG_DIR": "./log",
+            "TEST_REPORT_DIR": "tests/report",
+            "TEST_LOG_DIR": "tests/log",
             "TEST_ERROR_THRESHOLD_PERCENT": 18.0
         }
         self.TEST_SAMPLE_LOG_FILE = 'nginx-access-ui.log-20170629.txt'
@@ -179,8 +171,8 @@ class CreateReportTestCase(unittest.TestCase):
     def setUp(self):
         self.test_config = {
             "TEST_REPORT_SIZE": 5,
-            "TEST_REPORT_DIR": "./report",
-            "TEST_LOG_DIR": "./log",
+            "TEST_REPORT_DIR": "tests/report",
+            "TEST_LOG_DIR": "tests/log",
             "TEST_ERROR_THRESHOLD_PERCENT": 18.0
         }
         self.TEST_REPORT_TEMPLATE = 'template.html'
