@@ -21,3 +21,7 @@ jobs:
     - name: Analysing the code with pylint
       run: |
         pylint $(git ls-files '*.py')
+    - name: Run python tests
+      run: |
+        cd homework1
+        python -m unittest
