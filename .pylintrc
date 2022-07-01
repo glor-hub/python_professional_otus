@@ -102,10 +102,10 @@ disable=raw-checker-failed,
         deprecated-method,
         too-few-public-methods,
         too-many-ancestors,
-        duplicate-code
-        consider-using-f-string
-        logging-not-lazy
-        unspecified-encoding
+        duplicate-code,
+        consider-using-f-string,
+        logging-not-lazy,
+        unspecified-encoding,
         consider-using-with
         
 # Enable the message, report, category or checker with the given id(s). You can
