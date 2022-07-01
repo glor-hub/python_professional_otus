@@ -106,7 +106,16 @@ disable=raw-checker-failed,
         consider-using-f-string,
         logging-not-lazy,
         unspecified-encoding,
-        consider-using-with
+        consider-using-with,
+        singleton-comparison,
+        consider-using-dict-items,
+        try-except-raise,
+        no-else-return,
+        inconsistent-return-statements,
+        broad-except,
+        used-before-assignment,
+        consider-iterating-dictionary,
+        too-many-format-args
         
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
