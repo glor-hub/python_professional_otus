@@ -8,7 +8,7 @@ import logging
 import hashlib
 import uuid
 from optparse import OptionParser
-from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
+from  http.server import HTTPServer, BaseHTTPRequestHandler
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
@@ -152,14 +152,22 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(r))
         return
 
+def logging_init(logging_file):
+    # initialize script logging
+    logging.basicConfig(filename=logging_file,
+                        format='[%(asctime)s] %(levelname).1s %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S',
+                        level=logging.INFO)
 
 if __name__ == "__main__":
     op = OptionParser()
     op.add_option("-p", "--port", action="store", type=int, default=8080)
     op.add_option("-l", "--log", action="store", default=None)
     (opts, args) = op.parse_args()
-    logging.basicConfig(filename=opts.log, level=logging.INFO,
-                        format='[%(asctime)s] %(levelname).1s %(message)s', datefmt='%Y.%m.%d %H:%M:%S')
+    try:
+        logging_init(opts.log)
+    except Exception:
+        logging_init(None)
     server = HTTPServer(("localhost", opts.port), MainHTTPHandler)
     logging.info("Starting server at %s" % opts.port)
     try:
