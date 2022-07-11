@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-import abc
+import re
+from abc import ABCMeta, abstractmethod
 import json
 import datetime
 import logging
@@ -36,20 +36,44 @@ GENDERS = {
 }
 
 
-class CharField(object):
-    pass
+class FieldABC(metaclass=ABCMeta):
+    def __init__(self, required=False, nullable=True):
+        self.required = required
+        self.nullable = nullable
+
+    @abstractmethod
+    # return validated field or raise ValueError
+    def validate(self, value):
+        raise NotImplementedError('Parse_and_validate method not implemented')
 
 
-class ArgumentsField(object):
-    pass
+class CharField(FieldABC):
+    def validate(self, value):
+        if isinstance(value, str):
+            return value
+        raise ValueError('Field is not string')
+
+
+class ArgumentsField(FieldABC):
+    def validate(self, value):
+        if isinstance(value, dict):
+            return value
+        raise ValueError('Field is not dictionary')
 
 
 class EmailField(CharField):
-    pass
+    def validate(self, value):
+        value = super().validate(value)
+        if not re.match(r'(.+@.+)', value):
+            raise ValueError('Email is not valid')
+        return value
 
 
-class PhoneField(object):
-    pass
+class PhoneField(FieldABC):
+    def validate(self, value):
+        if not re.match(r'(^7[\d]{10}$)', str(value)):
+            raise ValueError('Phone is not valid')
+        return value
 
 
 class DateField(object):
@@ -68,12 +92,38 @@ class ClientIDsField(object):
     pass
 
 
-class ClientsInterestsRequest(object):
+class RequestMeta(type):
+    # gather correct fields of new request in collection
+    def __new__(meta, name, bases, attrs):
+        fields_list = []
+        for key, value in attrs.items():
+            if isinstance(value, FieldABC):
+                fields_list.append((key,value))
+        cls = super().__new__(meta, name, bases, attrs)
+        cls.fields_list = fields_list
+        return cls
+
+
+class Request(metaclass=RequestMeta):
+
+    def __init__(self, request):
+        self.request = request
+
+    def is_valid(self):
+        self.errors_list = []
+        for key,value in self.fields_list:
+            if not isinstance(self.request,dict):
+                self.errors_list.append('Request must be dictionary')
+            if value.required and key not in self.request.keys():
+                self.errors_list.append(f'Field {key} must not be empty')
+            return (self.errors_list,INVALID_REQUEST)
+
+class ClientsInterestsRequest(Request):
     client_ids = ClientIDsField(required=True)
     date = DateField(required=False, nullable=True)
 
 
-class OnlineScoreRequest(object):
+class OnlineScoreRequest(Request):
     first_name = CharField(required=False, nullable=True)
     last_name = CharField(required=False, nullable=True)
     email = EmailField(required=False, nullable=True)
@@ -82,7 +132,7 @@ class OnlineScoreRequest(object):
     gender = GenderField(required=False, nullable=True)
 
 
-class MethodRequest(object):
+class MethodRequest(Request):
     account = CharField(required=False, nullable=True)
     login = CharField(required=True, nullable=True)
     token = CharField(required=True, nullable=True)
@@ -106,6 +156,9 @@ def check_auth(request):
 
 def method_handler(request, ctx, store):
     response, code = None, None
+    request = MethodRequest(request['body'])
+    if not request.is_valid():
+        raise INVALID_REQUEST
     return response, code
 
 
@@ -152,12 +205,14 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(r))
         return
 
+
 def logging_init(logging_file):
     # initialize script logging
     logging.basicConfig(filename=logging_file,
                         format='[%(asctime)s] %(levelname).1s %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S',
                         level=logging.INFO)
+
 
 if __name__ == "__main__":
     op = OptionParser()
