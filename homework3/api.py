@@ -34,7 +34,8 @@ GENDERS = {
     MALE: "male",
     FEMALE: "female",
 }
-
+#
+EMPTY_VALUES = (None, '', [], (), {})
 
 class FieldABC(metaclass=ABCMeta):
     def __init__(self, required=False, nullable=True):
@@ -105,18 +106,29 @@ class RequestMeta(type):
 
 
 class Request(metaclass=RequestMeta):
-
     def __init__(self, request):
         self.request = request
-
-    def is_valid(self):
+        self.non_empty_fields=[]
         self.errors_list = []
-        for key,value in self.fields_list:
-            if not isinstance(self.request,dict):
-                self.errors_list.append('Request must be dictionary')
-            if value.required and key not in self.request.keys():
-                self.errors_list.append(f'Field {key} must not be empty')
-            return (self.errors_list,INVALID_REQUEST)
+        self.code= OK
+    def is_valid(self):
+        if not isinstance(self.request, dict):
+            self.errors_list.append('Request must be dictionary')
+            self.code = INVALID_REQUEST
+        for field_name,field_value in self.fields_list:
+            if field_name not in self.request.keys() and field_value.required:
+                self.errors_list.append(f'Field {field_name} is required')
+                self.code = INVALID_REQUEST
+            if field_name in self.request.keys():
+                if self.request[field_name] not in EMPTY_VALUES:
+                    self.non_empty_fields.append(field_name)
+                    field_value.validate(self.request[field_name])
+
+
+            if not field_value.nullable and request[field_name] in EMPTY_VALUES:
+                self.errors_list.append(f'Field {field_name} must not be empty')
+                self.code = INVALID_REQUEST
+        return (self.errors_list, self.code)
 
 class ClientsInterestsRequest(Request):
     client_ids = ClientIDsField(required=True)
@@ -158,7 +170,7 @@ def method_handler(request, ctx, store):
     response, code = None, None
     request = MethodRequest(request['body'])
     if not request.is_valid():
-        raise INVALID_REQUEST
+        return request.errors_list, INVALID_REQUEST
     return response, code
 
 
