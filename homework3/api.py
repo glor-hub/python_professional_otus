@@ -19,8 +19,8 @@ ERRORS = {
     HTTPStatus.BAD_REQUEST.value: "Bad Request",
     HTTPStatus.FORBIDDEN.value: "Forbidden",
     HTTPStatus.NOT_FOUND.value: "Not Found",
-    HTTPStatus.INVALID_REQUEST.value: "Invalid Request",
-    HTTPStatus.INTERNAL_ERROR.value: "Internal Server Error",
+    HTTPStatus.UNPROCESSABLE_ENTITY.value: "Invalid Request",
+    HTTPStatus.INTERNAL_SERVER_ERROR.value: "Internal Server Error",
 }
 UNKNOWN = 0
 MALE = 1
@@ -30,7 +30,7 @@ GENDERS = {
     MALE: "male",
     FEMALE: "female",
 }
-#
+
 EMPTY_VALUES = (None, '', [], (), {})
 LIMIT_AGE = 70
 
@@ -135,18 +135,18 @@ class Request(metaclass=RequestMeta):
     def is_valid(self):
         if not isinstance(self.request, dict):
             self.errors_list.append('Request must be dictionary')
-            self.code = HTTPStatus.INVALID_REQUEST.value
+            self.code = HTTPStatus.UNPROCESSABLE_ENTITY.value
         for field_name, field_value in self.fields_list:
             if field_name not in self.request.keys() and field_value.required:
                 self.errors_list.append(f'Field {field_name} is required')
-                self.code = HTTPStatus.INVALID_REQUEST.value
+                self.code = HTTPStatus.UNPROCESSABLE_ENTITY
             if field_name in self.request.keys():
                 if self.request[field_name] not in EMPTY_VALUES:
                     self.non_empty_fields.append(field_name)
                     field_value.validate(self.request[field_name])
             if not field_value.nullable and self.request[field_name] in EMPTY_VALUES:
                 self.errors_list.append(f'Field {field_name} must not be empty')
-                self.code = HTTPStatus.INVALID_REQUEST.value
+                self.code = HTTPStatus.UNPROCESSABLE_ENTITY.value
         if self.errors_list:
             return False
         return True
@@ -187,12 +187,12 @@ class OnlineScoreRequest(Request):
                                     email-phone, 
                                     first_name-last_name, 
                                     gender-birthday must be not empty''')
-            self.code = HTTPStatus.INVALID_REQUEST.value
+            self.code = HTTPStatus.UNPROCESSABLE_ENTITY.value
         if self.errors_list:
             return False
         return True
 
-    def get_response(self, ctx, store, **request):
+    def get_response(self, ctx, store, is_admin,**request):
         ctx['has'] = self.non_empty_fields
         if is_admin:
             score = 43
@@ -244,11 +244,10 @@ def method_handler(request, ctx, store):
                                         **request['body']['arguments'])
     # clients_interests method
     elif request['body']['method'] == 'clients_interests':
-        arg_request = ClientsInterestsRequesе(**request['body']['arguments'])
+        arg_request = ClientsInterestsRequest(**request['body']['arguments'])
         if not arg_request.is_valid():
             return arg_request.errors_list, arg_request.code
-        return arg_request.get_response(ctx,
-                                        store)
+        return arg_request.get_response(ctx, store)
 
 
 class MainHTTPHandler(BaseHTTPRequestHandler):
@@ -278,7 +277,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
                     response, code = self.router[path]({"body": request, "headers": self.headers}, context, self.store)
                 except Exception as e:
                     logging.exception("Unexpected error: %s" % e)
-                    code = HTTPStatus.INTERNAL_ERROR.value
+                    code = HTTPStatus.INTERNAL_SERVER_ERROR.value
             else:
                 code = HTTPStatus.NOT_FOUND.value
 
@@ -291,7 +290,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
             r = {"error": response or ERRORS.get(code, "Unknown Error"), "code": code}
         context.update(r)
         logging.info(context)
-        self.wfile.write(json.dumps(r))
+        self.wfile.write(json.dumps(r).encode('utf-8'))
         return
 
 
