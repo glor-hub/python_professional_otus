@@ -9,6 +9,7 @@ import hashlib
 import uuid
 from optparse import OptionParser
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from scoring import get_score, get_interests
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
@@ -36,6 +37,7 @@ GENDERS = {
 }
 #
 EMPTY_VALUES = (None, '', [], (), {})
+
 
 class FieldABC(metaclass=ABCMeta):
     def __init__(self, required=False, nullable=True):
@@ -94,12 +96,12 @@ class ClientIDsField(object):
 
 
 class RequestMeta(type):
-    # gather correct fields of new request in collection
+    # gather correct fields in collection
     def __new__(meta, name, bases, attrs):
         fields_list = []
         for key, value in attrs.items():
             if isinstance(value, FieldABC):
-                fields_list.append((key,value))
+                fields_list.append((key, value))
         cls = super().__new__(meta, name, bases, attrs)
         cls.fields_list = fields_list
         return cls
@@ -108,14 +110,15 @@ class RequestMeta(type):
 class Request(metaclass=RequestMeta):
     def __init__(self, request):
         self.request = request
-        self.non_empty_fields=[]
+        self.non_empty_fields = []
         self.errors_list = []
-        self.code= OK
+        self.code = OK
+
     def is_valid(self):
         if not isinstance(self.request, dict):
             self.errors_list.append('Request must be dictionary')
             self.code = INVALID_REQUEST
-        for field_name,field_value in self.fields_list:
+        for field_name, field_value in self.fields_list:
             if field_name not in self.request.keys() and field_value.required:
                 self.errors_list.append(f'Field {field_name} is required')
                 self.code = INVALID_REQUEST
@@ -123,12 +126,13 @@ class Request(metaclass=RequestMeta):
                 if self.request[field_name] not in EMPTY_VALUES:
                     self.non_empty_fields.append(field_name)
                     field_value.validate(self.request[field_name])
-
-
-            if not field_value.nullable and request[field_name] in EMPTY_VALUES:
+            if not field_value.nullable and self.request[field_name] in EMPTY_VALUES:
                 self.errors_list.append(f'Field {field_name} must not be empty')
                 self.code = INVALID_REQUEST
-        return (self.errors_list, self.code)
+        if self.errors_list:
+            return False
+        return True
+
 
 class ClientsInterestsRequest(Request):
     client_ids = ClientIDsField(required=True)
@@ -142,6 +146,31 @@ class OnlineScoreRequest(Request):
     phone = PhoneField(required=False, nullable=True)
     birthday = BirthDayField(required=False, nullable=True)
     gender = GenderField(required=False, nullable=True)
+
+    def is_valid(self):
+        has_pair = False
+        super().is_valid()
+        val_pairs = [['email', 'phone'], ['first_name', 'last_name'], ['gender', 'birthday']]
+        for pair in val_pairs:
+            if set(pair).issubset(self.non_empty_fields):
+                has_pair = True
+        if not has_pair:
+            self.errors_list.append('''At least one pair of field:
+                                    email-phone, 
+                                    first_name-last_name, 
+                                    gender-birthday must be not empty''')
+            self.code = INVALID_REQUEST
+        if self.errors_list:
+            return False
+        return True
+
+    def get_response(self, ctx, store, is_admin, **request):
+        ctx['has'] = self.non_empty_fields
+        if is_admin:
+            score = 43
+        else:
+            score = get_score(store, **request)
+        return {'score': score}, self.code
 
 
 class MethodRequest(Request):
@@ -167,11 +196,29 @@ def check_auth(request):
 
 
 def method_handler(request, ctx, store):
-    response, code = None, None
-    request = MethodRequest(request['body'])
-    if not request.is_valid():
-        return request.errors_list, INVALID_REQUEST
-    return response, code
+    # validate request
+    basic_request = MethodRequest(**request['body'])
+    if not basic_request.is_valid():
+        return basic_request.errors_list, basic_request.code
+    # if token is invalid, return Forbidden status
+    if not check_auth(request['body']):
+        return "Forbidden", FORBIDDEN
+    # analyze request method
+
+    # online_score method
+    if request['body']['method'] == 'online_score':
+        arg_request = OnlineScoreRequest(**request['body']['arguments'])
+        if not arg_request.is_valid():
+            return arg_request.errors_list, arg_request.code
+        return arg_request.get_response(ctx,
+                                        store,
+                                        basic_request.is_admin,
+                                        **request['body']['arguments'])
+    # clients_interests method
+    elif request['body']['method'] == 'clients_interests':
+        return ClientsInterestsRequest(**request['body']['arguments']).get_response_or_error(ctx, store)
+    else:
+        return "Unknown method", INVALID_REQUEST
 
 
 class MainHTTPHandler(BaseHTTPRequestHandler):
