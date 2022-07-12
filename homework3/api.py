@@ -138,6 +138,15 @@ class ClientsInterestsRequest(Request):
     client_ids = ClientIDsField(required=True)
     date = DateField(required=False, nullable=True)
 
+    def get_response(self, ctx, store):
+        response={}
+        n_ids=0
+        clt_ids_list=self.request['clients_ids']
+        for clt_id in clt_ids_list:
+            response[str(clt_id)]=get_interests(store,clt_id)
+            n_ids+=1
+        ctx['nclients'] = n_ids
+        return response, self.code
 
 class OnlineScoreRequest(Request):
     first_name = CharField(required=False, nullable=True)
@@ -164,7 +173,7 @@ class OnlineScoreRequest(Request):
             return False
         return True
 
-    def get_response(self, ctx, store, is_admin, **request):
+    def get_response(self, ctx, store, **request):
         ctx['has'] = self.non_empty_fields
         if is_admin:
             score = 43
@@ -216,9 +225,11 @@ def method_handler(request, ctx, store):
                                         **request['body']['arguments'])
     # clients_interests method
     elif request['body']['method'] == 'clients_interests':
-        return ClientsInterestsRequest(**request['body']['arguments']).get_response_or_error(ctx, store)
-    else:
-        return "Unknown method", INVALID_REQUEST
+        arg_request =ClientsInterestsRequesе(**request['body']['arguments'])
+        if not arg_request.is_valid():
+            return arg_request.errors_list, arg_request.code
+        return arg_request.get_response(ctx,
+                                        store)
 
 
 class MainHTTPHandler(BaseHTTPRequestHandler):
