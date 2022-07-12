@@ -3,29 +3,24 @@
 import re
 from abc import ABCMeta, abstractmethod
 import json
-import datetime
+from datetime import datetime
 import logging
 import hashlib
 import uuid
 from optparse import OptionParser
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from http import HTTPStatus
 from scoring import get_score, get_interests
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
 ADMIN_SALT = "42"
-OK = 200
-BAD_REQUEST = 400
-FORBIDDEN = 403
-NOT_FOUND = 404
-INVALID_REQUEST = 422
-INTERNAL_ERROR = 500
 ERRORS = {
-    BAD_REQUEST: "Bad Request",
-    FORBIDDEN: "Forbidden",
-    NOT_FOUND: "Not Found",
-    INVALID_REQUEST: "Invalid Request",
-    INTERNAL_ERROR: "Internal Server Error",
+    HTTPStatus.BAD_REQUEST.value: "Bad Request",
+    HTTPStatus.FORBIDDEN.value: "Forbidden",
+    HTTPStatus.NOT_FOUND.value: "Not Found",
+    HTTPStatus.INVALID_REQUEST.value: "Invalid Request",
+    HTTPStatus.INTERNAL_ERROR.value: "Internal Server Error",
 }
 UNKNOWN = 0
 MALE = 1
@@ -37,6 +32,7 @@ GENDERS = {
 }
 #
 EMPTY_VALUES = (None, '', [], (), {})
+LIMIT_AGE = 70
 
 
 class FieldABC(metaclass=ABCMeta):
@@ -68,31 +64,53 @@ class EmailField(CharField):
     def validate(self, value):
         value = super().validate(value)
         if not re.match(r'(.+@.+)', value):
-            raise ValueError('Email is not valid')
+            raise ValueError('Email field is not valid')
         return value
 
 
 class PhoneField(FieldABC):
     def validate(self, value):
         if not re.match(r'(^7[\d]{10}$)', str(value)):
-            raise ValueError('Phone is not valid')
+            raise ValueError('Phone field is not valid')
         return value
 
 
-class DateField(object):
-    pass
+class DateField(FieldABC):
+    def validate(self, value):
+        try:
+            datetime.strptime(str(value), '%d.%m.%Y')
+        except:
+            raise ValueError('Date field is not valid')
+        return value
 
 
-class BirthDayField(object):
-    pass
+class BirthDayField(FieldABC):
+    def validate(self, value):
+        current_date = datetime.now()
+        try:
+            birth_date = datetime.strptime(str(value), '%d.%m.%Y')
+        except:
+            raise ValueError('BirthDay field is not valid')
+        if (current_date.year - birth_date.year) > LIMIT_AGE:
+            raise ValueError(f'Age must not exceed {LIMIT_AGE} years')
+        return value
 
 
-class GenderField(object):
-    pass
+class GenderField(FieldABC):
+    def validate(self, value):
+        if value not in GENDERS:
+            raise ValueError('Gender field is not valid')
+        return value
 
 
-class ClientIDsField(object):
-    pass
+class ClientIDsField(FieldABC):
+    def validate(self, values):
+        if not isinstance(values, list):
+            raise ValueError('Client ids field is not valid')
+        for value in values:
+            if not isinstance(value, int):
+                raise ValueError('Client ids field is not valid')
+        return values
 
 
 class RequestMeta(type):
@@ -112,23 +130,23 @@ class Request(metaclass=RequestMeta):
         self.request = request
         self.non_empty_fields = []
         self.errors_list = []
-        self.code = OK
+        self.code = HTTPStatus.OK.value
 
     def is_valid(self):
         if not isinstance(self.request, dict):
             self.errors_list.append('Request must be dictionary')
-            self.code = INVALID_REQUEST
+            self.code = HTTPStatus.INVALID_REQUEST.value
         for field_name, field_value in self.fields_list:
             if field_name not in self.request.keys() and field_value.required:
                 self.errors_list.append(f'Field {field_name} is required')
-                self.code = INVALID_REQUEST
+                self.code = HTTPStatus.INVALID_REQUEST.value
             if field_name in self.request.keys():
                 if self.request[field_name] not in EMPTY_VALUES:
                     self.non_empty_fields.append(field_name)
                     field_value.validate(self.request[field_name])
             if not field_value.nullable and self.request[field_name] in EMPTY_VALUES:
                 self.errors_list.append(f'Field {field_name} must not be empty')
-                self.code = INVALID_REQUEST
+                self.code = HTTPStatus.INVALID_REQUEST.value
         if self.errors_list:
             return False
         return True
@@ -139,14 +157,15 @@ class ClientsInterestsRequest(Request):
     date = DateField(required=False, nullable=True)
 
     def get_response(self, ctx, store):
-        response={}
-        n_ids=0
-        clt_ids_list=self.request['clients_ids']
+        response = {}
+        n_ids = 0
+        clt_ids_list = self.request['clients_ids']
         for clt_id in clt_ids_list:
-            response[str(clt_id)]=get_interests(store,clt_id)
-            n_ids+=1
+            response[str(clt_id)] = get_interests(store, clt_id)
+            n_ids += 1
         ctx['nclients'] = n_ids
         return response, self.code
+
 
 class OnlineScoreRequest(Request):
     first_name = CharField(required=False, nullable=True)
@@ -168,7 +187,7 @@ class OnlineScoreRequest(Request):
                                     email-phone, 
                                     first_name-last_name, 
                                     gender-birthday must be not empty''')
-            self.code = INVALID_REQUEST
+            self.code = HTTPStatus.INVALID_REQUEST.value
         if self.errors_list:
             return False
         return True
@@ -211,7 +230,7 @@ def method_handler(request, ctx, store):
         return basic_request.errors_list, basic_request.code
     # if token is invalid, return Forbidden status
     if not check_auth(request['body']):
-        return "Forbidden", FORBIDDEN
+        return "Forbidden", HTTPStatus.FORBIDDEN.value
     # analyze request method
 
     # online_score method
@@ -225,7 +244,7 @@ def method_handler(request, ctx, store):
                                         **request['body']['arguments'])
     # clients_interests method
     elif request['body']['method'] == 'clients_interests':
-        arg_request =ClientsInterestsRequesе(**request['body']['arguments'])
+        arg_request = ClientsInterestsRequesе(**request['body']['arguments'])
         if not arg_request.is_valid():
             return arg_request.errors_list, arg_request.code
         return arg_request.get_response(ctx,
@@ -242,14 +261,14 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
         return headers.get('HTTP_X_REQUEST_ID', uuid.uuid4().hex)
 
     def do_POST(self):
-        response, code = {}, OK
+        response, code = {}, HTTPStatus.OK.value
         context = {"request_id": self.get_request_id(self.headers)}
         request = None
         try:
             data_string = self.rfile.read(int(self.headers['Content-Length']))
             request = json.loads(data_string)
         except:
-            code = BAD_REQUEST
+            code = HTTPStatus.BAD_REQUEST.value
 
         if request:
             path = self.path.strip("/")
@@ -259,9 +278,9 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
                     response, code = self.router[path]({"body": request, "headers": self.headers}, context, self.store)
                 except Exception as e:
                     logging.exception("Unexpected error: %s" % e)
-                    code = INTERNAL_ERROR
+                    code = HTTPStatus.INTERNAL_ERROR.value
             else:
-                code = NOT_FOUND
+                code = HTTPStatus.NOT_FOUND.value
 
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
