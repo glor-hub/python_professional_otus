@@ -50,14 +50,14 @@ class CharField(FieldABC):
     def validate(self, value):
         if isinstance(value, str):
             return value
-        raise ValueError('Field is not string')
+        raise ValueError('field is not string')
 
 
 class ArgumentsField(FieldABC):
     def validate(self, value):
         if isinstance(value, dict):
             return value
-        raise ValueError('Field is not dictionary')
+        raise ValueError('Arguments field is not dictionary')
 
 
 class EmailField(CharField):
@@ -138,28 +138,32 @@ class Request(metaclass=RequestMeta):
             self.code = HTTPStatus.UNPROCESSABLE_ENTITY.value
         for field_name, field_value in self.fields_list:
             if field_name not in self.request.keys() and field_value.required:
-                self.errors_list.append(f'Field {field_name} is required')
+                self.errors_list.append(f'Field \'{field_name}\' is required')
                 self.code = HTTPStatus.UNPROCESSABLE_ENTITY
             if field_name in self.request.keys():
                 if self.request[field_name] not in EMPTY_VALUES:
                     self.non_empty_fields.append(field_name)
-                    field_value.validate(self.request[field_name])
-            if not field_value.nullable and self.request[field_name] in EMPTY_VALUES:
-                self.errors_list.append(f'Field {field_name} must not be empty')
-                self.code = HTTPStatus.UNPROCESSABLE_ENTITY.value
+                    try:
+                        field_value.validate(self.request[field_name])
+                    except Exception as e:
+                        self.errors_list.append(f'Field \'{field_name}\': {e}')
+                        self.code = HTTPStatus.UNPROCESSABLE_ENTITY.value
+                if not field_value.nullable and self.request[field_name] in EMPTY_VALUES:
+                    self.errors_list.append(f'Field \'{field_name}\' must not be empty')
+                    self.code = HTTPStatus.UNPROCESSABLE_ENTITY.value
         if self.errors_list:
             return False
         return True
 
 
 class ClientsInterestsRequest(Request):
-    client_ids = ClientIDsField(required=True)
+    client_ids = ClientIDsField(required=True, nullable=False)
     date = DateField(required=False, nullable=True)
 
     def get_response(self, ctx, store):
         response = {}
         n_ids = 0
-        clt_ids_list = self.request['clients_ids']
+        clt_ids_list = self.request['client_ids']
         for clt_id in clt_ids_list:
             response[str(clt_id)] = get_interests(store, clt_id)
             n_ids += 1
@@ -183,19 +187,16 @@ class OnlineScoreRequest(Request):
             if set(pair).issubset(self.non_empty_fields):
                 has_pair = True
         if not has_pair:
-            self.errors_list.append('''At least one pair of field:
-                                    email-phone, 
-                                    first_name-last_name, 
-                                    gender-birthday must be not empty''')
+            self.errors_list.append('At least one pair of field: email-phone, first_name-last_name, gender-birthday must be not empty')
             self.code = HTTPStatus.UNPROCESSABLE_ENTITY.value
         if self.errors_list:
             return False
         return True
 
-    def get_response(self, ctx, store, is_admin,**request):
+    def get_response(self, ctx, store, is_admin, request):
         ctx['has'] = self.non_empty_fields
         if is_admin:
-            score = 43
+            score = 42
         else:
             score = get_score(store, **request)
         return {'score': score}, self.code
@@ -213,38 +214,41 @@ class MethodRequest(Request):
         return self.login == ADMIN_LOGIN
 
 
-def check_auth(request):
-    if request.is_admin:
-        digest = hashlib.sha512(datetime.datetime.now().strftime("%Y%m%d%H") + ADMIN_SALT).hexdigest()
+def check_auth(basic_request, request):
+    basic_request.login = request['login']
+    if basic_request.is_admin:
+        digest = hashlib.sha512((datetime.now().strftime("%Y%m%d%H") + ADMIN_SALT).encode('utf-8')).hexdigest()
     else:
-        digest = hashlib.sha512(request.account + request.login + SALT).hexdigest()
-    if digest == request.token:
+        digest = hashlib.sha512((request['account'] + request['login'] + SALT).encode('utf-8')).hexdigest()
+    if digest == request['token']:
         return True
     return False
 
 
 def method_handler(request, ctx, store):
     # validate request
-    basic_request = MethodRequest(**request['body'])
+    basic_request = MethodRequest(request['body'])
     if not basic_request.is_valid():
         return basic_request.errors_list, basic_request.code
     # if token is invalid, return Forbidden status
-    if not check_auth(request['body']):
-        return "Forbidden", HTTPStatus.FORBIDDEN.value
+    if not check_auth(basic_request, request['body']):
+        basic_request.errors_list.append("Forbidden")
+        basic_request.code=HTTPStatus.FORBIDDEN.value
+        return basic_request.errors_list, basic_request.code
     # analyze request method
 
     # online_score method
     if request['body']['method'] == 'online_score':
-        arg_request = OnlineScoreRequest(**request['body']['arguments'])
+        arg_request = OnlineScoreRequest(request['body']['arguments'])
         if not arg_request.is_valid():
             return arg_request.errors_list, arg_request.code
         return arg_request.get_response(ctx,
                                         store,
                                         basic_request.is_admin,
-                                        **request['body']['arguments'])
+                                        request['body']['arguments'])
     # clients_interests method
     elif request['body']['method'] == 'clients_interests':
-        arg_request = ClientsInterestsRequest(**request['body']['arguments'])
+        arg_request = ClientsInterestsRequest(request['body']['arguments'])
         if not arg_request.is_valid():
             return arg_request.errors_list, arg_request.code
         return arg_request.get_response(ctx, store)
