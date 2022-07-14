@@ -1,7 +1,9 @@
 name: Pylint
 
 on: [push]
-
+  push:
+    branches:
+      - '*'
 jobs:
   build:
     runs-on: ubuntu-latest

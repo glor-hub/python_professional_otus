@@ -115,17 +115,17 @@ disable=raw-checker-failed,
         broad-except,
         used-before-assignment,
         consider-iterating-dictionary,
-        too-many-format-args
-        undefined-variable
-        redefined-outer-name
-        unused-argument
-        too-many-arguments
-        deprecated-module
-        arguments-renamed
-        bad-mcs-classmethod-argument
-        bare-except
-        useless-return
-        raise-missing-from
+        too-many-format-args,
+        undefined-variable,
+        redefined-outer-name,
+        unused-argument,
+        too-many-arguments,
+        deprecated-module,
+        arguments-renamed,
+        bad-mcs-classmethod-argument,
+        bare-except,
+        useless-return,
+        raise-missing-from,
         too-many-format-args
         
 # Enable the message, report, category or checker with the given id(s). You can
