@@ -15,13 +15,21 @@ from scoring import get_score, get_interests
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
 ADMIN_SALT = "42"
+OK = 200
+BAD_REQUEST = HTTPStatus.BAD_REQUEST.value
+FORBIDDEN = HTTPStatus.FORBIDDEN.value
+NOT_FOUND = HTTPStatus.NOT_FOUND.value
+INVALID_REQUEST = HTTPStatus.UNPROCESSABLE_ENTITY.value
+INTERNAL_ERROR = HTTPStatus.INTERNAL_SERVER_ERROR.value
+
 ERRORS = {
-    HTTPStatus.BAD_REQUEST.value: "Bad Request",
-    HTTPStatus.FORBIDDEN.value: "Forbidden",
-    HTTPStatus.NOT_FOUND.value: "Not Found",
-    HTTPStatus.UNPROCESSABLE_ENTITY.value: "Invalid Request",
-    HTTPStatus.INTERNAL_SERVER_ERROR.value: "Internal Server Error",
+    BAD_REQUEST: 'Bad Request',
+    FORBIDDEN: 'Forbidden',
+    NOT_FOUND: 'Not Found',
+    INVALID_REQUEST: 'Invalid Request',
+    INTERNAL_ERROR: 'Internal Server Error',
 }
+
 UNKNOWN = 0
 MALE = 1
 FEMALE = 2
@@ -135,7 +143,7 @@ class Request(metaclass=RequestMeta):
     def is_valid(self):
         if not isinstance(self.request, dict):
             self.errors_list.append('Request must be dictionary')
-            self.code = HTTPStatus.UNPROCESSABLE_ENTITY.value
+            self.code = INVALID_REQUEST
         for field_name, field_value in self.fields_list:
             if field_name not in self.request.keys() and field_value.required:
                 self.errors_list.append(f'Field \'{field_name}\' is required')
@@ -147,10 +155,10 @@ class Request(metaclass=RequestMeta):
                         field_value.validate(self.request[field_name])
                     except Exception as e:
                         self.errors_list.append(f'Field \'{field_name}\': {e}')
-                        self.code = HTTPStatus.UNPROCESSABLE_ENTITY.value
+                        self.code = INVALID_REQUEST
                 if not field_value.nullable and self.request[field_name] in EMPTY_VALUES:
                     self.errors_list.append(f'Field \'{field_name}\' must not be empty')
-                    self.code = HTTPStatus.UNPROCESSABLE_ENTITY.value
+                    self.code = INVALID_REQUEST
         if self.errors_list:
             return False
         return True
@@ -188,7 +196,7 @@ class OnlineScoreRequest(Request):
                 has_pair = True
         if not has_pair:
             self.errors_list.append('At least one pair of field: email-phone, first_name-last_name, gender-birthday must be not empty')
-            self.code = HTTPStatus.UNPROCESSABLE_ENTITY.value
+            self.code = INVALID_REQUEST
         if self.errors_list:
             return False
         return True
@@ -233,7 +241,7 @@ def method_handler(request, ctx, store):
     # if token is invalid, return Forbidden status
     if not check_auth(basic_request, request['body']):
         basic_request.errors_list.append("Forbidden")
-        basic_request.code=HTTPStatus.FORBIDDEN.value
+        basic_request.code=FORBIDDEN
         return basic_request.errors_list, basic_request.code
     # analyze request method
 
@@ -271,7 +279,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
             data_string = self.rfile.read(int(self.headers['Content-Length']))
             request = json.loads(data_string)
         except:
-            code = HTTPStatus.BAD_REQUEST.value
+            code = BAD_REQUEST
 
         if request:
             path = self.path.strip("/")
@@ -281,9 +289,9 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
                     response, code = self.router[path]({"body": request, "headers": self.headers}, context, self.store)
                 except Exception as e:
                     logging.exception("Unexpected error: %s" % e)
-                    code = HTTPStatus.INTERNAL_SERVER_ERROR.value
+                    code = INTERNAL_ERROR
             else:
-                code = HTTPStatus.NOT_FOUND.value
+                code = NOT_FOUND
 
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
