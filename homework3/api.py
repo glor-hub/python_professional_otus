@@ -211,11 +211,11 @@ class MethodRequest(Request):
 
     @property
     def is_admin(self):
-        return self.login == ADMIN_LOGIN
+        return self.login.name == ADMIN_LOGIN
 
 
 def check_auth(basic_request, request):
-    basic_request.login = request['login']
+    basic_request.login.name = request['login']
     if basic_request.is_admin:
         digest = hashlib.sha512((datetime.now().strftime("%Y%m%d%H") + ADMIN_SALT).encode('utf-8')).hexdigest()
     else:
