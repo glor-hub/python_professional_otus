@@ -44,13 +44,16 @@ EMPTY_VALUES = (None, '', [], (), {})
 LIMIT_AGE = 70
 
 
+class ValidationError(Exception):
+    pass
+
 class FieldABC(metaclass=ABCMeta):
     def __init__(self, required=False, nullable=True):
         self.required = required
         self.nullable = nullable
 
     @abstractmethod
-    # return validated field or raise ValueError
+    # return validated field or raise ValidationError
     def validate(self, value):
         raise NotImplementedError('Parse_and_validate method not implemented')
 
@@ -59,28 +62,28 @@ class CharField(FieldABC):
     def validate(self, value):
         if isinstance(value, str):
             return value
-        raise ValueError('field is not string')
+        raise ValidationError('Field is not string')
 
 
 class ArgumentsField(FieldABC):
     def validate(self, value):
         if isinstance(value, dict):
             return value
-        raise ValueError('Arguments field is not dictionary')
+        raise ValidationError('Arguments field is not dictionary')
 
 
 class EmailField(CharField):
     def validate(self, value):
         value = super().validate(value)
         if not re.match(r'(.+@.+)', value):
-            raise ValueError('Email field is not valid')
+            raise ValidationError('Email field is not valid')
         return value
 
 
 class PhoneField(FieldABC):
     def validate(self, value):
         if not re.match(r'(^7[\d]{10}$)', str(value)):
-            raise ValueError('Phone field is not valid')
+            raise ValidationError('Phone field is not valid')
         return value
 
 
@@ -89,7 +92,7 @@ class DateField(FieldABC):
         try:
             datetime.strptime(str(value), '%d.%m.%Y')
         except:
-            raise ValueError('Date field is not valid')
+            raise ValidationError('Date field is not valid')
         return value
 
 
@@ -99,26 +102,26 @@ class BirthDayField(FieldABC):
         try:
             birth_date = datetime.strptime(str(value), '%d.%m.%Y')
         except:
-            raise ValueError('BirthDay field is not valid')
+            raise ValidationError('BirthDay field is not valid')
         if (current_date.year - birth_date.year) > LIMIT_AGE:
-            raise ValueError(f'Age must not exceed {LIMIT_AGE} years')
+            raise ValidationError(f'Age must not exceed {LIMIT_AGE} years')
         return value
 
 
 class GenderField(FieldABC):
     def validate(self, value):
         if value not in GENDERS:
-            raise ValueError('Gender field is not valid')
+            raise ValidationError('Gender field is not valid')
         return value
 
 
 class ClientIDsField(FieldABC):
     def validate(self, values):
         if not isinstance(values, list):
-            raise ValueError('Client ids field is not valid')
+            raise ValidationError('Client ids field is not valid')
         for value in values:
             if not isinstance(value, int):
-                raise ValueError('Client ids field is not valid')
+                raise ValidationError('Client ids field is not valid')
         return values
 
 
