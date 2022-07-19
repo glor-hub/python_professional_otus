@@ -16,7 +16,7 @@ from scoring import get_score, get_interests
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
 ADMIN_SALT = "42"
-OK = 200
+OK = HTTPStatus.OK.value
 BAD_REQUEST = HTTPStatus.BAD_REQUEST.value
 FORBIDDEN = HTTPStatus.FORBIDDEN.value
 NOT_FOUND = HTTPStatus.NOT_FOUND.value
@@ -46,6 +46,7 @@ LIMIT_AGE = 70
 
 class ValidationError(Exception):
     pass
+
 
 class FieldABC(metaclass=ABCMeta):
     def __init__(self, required=False, nullable=True):
@@ -172,16 +173,6 @@ class ClientsInterestsRequest(Request):
     client_ids = ClientIDsField(required=True, nullable=False)
     date = DateField(required=False, nullable=True)
 
-    def get_response(self, ctx, store):
-        response = {}
-        n_ids = 0
-        clt_ids_list = self.request['client_ids']
-        for clt_id in clt_ids_list:
-            response[str(clt_id)] = get_interests(store, clt_id)
-            n_ids += 1
-        ctx['nclients'] = n_ids
-        return response, self.code
-
 
 class OnlineScoreRequest(Request):
     first_name = CharField(required=False, nullable=True)
@@ -199,20 +190,12 @@ class OnlineScoreRequest(Request):
             if set(pair).issubset(self.non_empty_fields):
                 has_pair = True
         if not has_pair:
-            self.errors_list.append('At least one pair of field: email-phone, first_name-last_name, gender-birthday must be not empty')
+            self.errors_list.append(
+                'At least one pair of field: email-phone, first_name-last_name, gender-birthday must be not empty')
             self.code = INVALID_REQUEST
         if self.errors_list:
             return False
         return True
-
-    def get_response(self, ctx, store, is_admin, request):
-        ctx['has'] = self.non_empty_fields
-        if is_admin:
-            score = 42
-        else:
-            score = get_score(store, **request)
-        return {'score': score}, self.code
-
 
 class MethodRequest(Request):
     account = CharField(required=False, nullable=True)
@@ -224,6 +207,40 @@ class MethodRequest(Request):
     @property
     def is_admin(self):
         return self.login.name == ADMIN_LOGIN
+
+class RequestHandlerABC(metaclass=ABCMeta):
+    def __init__(self, ctx, store, non_empty_fields, request):
+        self.ctx = ctx
+        self.store = store
+        self.code = HTTPStatus.OK.value
+        self.non_empty_fields = non_empty_fields
+        self.request = request
+
+    @abstractmethod
+    def call_back(self):
+        raise NotImplementedError('Call_back method not implemented')
+
+
+class ClientsInterestsHandler(RequestHandlerABC):
+    def call_back(self):
+        response = {}
+        n_ids = 0
+        clt_ids_list = self.request.request['arguments']['client_ids']
+        for clt_id in clt_ids_list:
+            response[str(clt_id)] = get_interests(self.store, clt_id)
+            n_ids += 1
+        self.ctx['nclients'] = n_ids
+        return response, self.code
+
+
+class OnlineScoreHandler(RequestHandlerABC):
+    def call_back(self):
+        self.ctx['has'] = self.non_empty_fields
+        if self.request.is_admin:
+            score = 42
+        else:
+            score = get_score(self.store, **self.request.request['arguments'])
+        return {'score': score}, self.code
 
 
 def check_auth(basic_request, request):
@@ -238,6 +255,12 @@ def check_auth(basic_request, request):
 
 
 def method_handler(request, ctx, store):
+    methods_map = {
+        'online_score':
+            {'request': OnlineScoreRequest, 'handler': OnlineScoreHandler},
+        'clients_interests':
+            {'request': ClientsInterestsRequest, 'handler': ClientsInterestsHandler}
+    }
     # validate request
     basic_request = MethodRequest(request['body'])
     if not basic_request.is_valid():
@@ -245,25 +268,20 @@ def method_handler(request, ctx, store):
     # if token is invalid, return Forbidden status
     if not check_auth(basic_request, request['body']):
         basic_request.errors_list.append("Forbidden")
-        basic_request.code=FORBIDDEN
+        basic_request.code = FORBIDDEN
         return basic_request.errors_list, basic_request.code
     # analyze request method
-
-    # online_score method
-    if request['body']['method'] == 'online_score':
-        arg_request = OnlineScoreRequest(request['body']['arguments'])
-        if not arg_request.is_valid():
-            return arg_request.errors_list, arg_request.code
-        return arg_request.get_response(ctx,
-                                        store,
-                                        basic_request.is_admin,
-                                        request['body']['arguments'])
-    # clients_interests method
-    elif request['body']['method'] == 'clients_interests':
-        arg_request = ClientsInterestsRequest(request['body']['arguments'])
-        if not arg_request.is_valid():
-            return arg_request.errors_list, arg_request.code
-        return arg_request.get_response(ctx, store)
+    method = basic_request.request['method']
+    if method not in methods_map:
+        basic_request.errors_list.append("Not Found")
+        basic_request.code = NOT_FOUND
+        return basic_request.errors_list, basic_request.code
+    request_cls = methods_map[method]['request']
+    handler_cls = methods_map[method]['handler']
+    arg_request = request_cls(request['body']['arguments'])
+    if not arg_request.is_valid():
+        return arg_request.errors_list, arg_request.code
+    return handler_cls(ctx, store, arg_request.non_empty_fields, basic_request).call_back()
 
 
 class MainHTTPHandler(BaseHTTPRequestHandler):
