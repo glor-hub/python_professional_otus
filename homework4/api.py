@@ -12,6 +12,7 @@ from optparse import OptionParser
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from http import HTTPStatus
 from scoring import get_score, get_interests
+from store import RedisStorage, Store
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
@@ -43,6 +44,7 @@ GENDERS = {
 EMPTY_VALUES = (None, '', [], (), {})
 LIMIT_AGE = 70
 
+MAX_CONNECT_RETRIES=10
 
 class ValidationError(Exception):
     pass
@@ -288,7 +290,8 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
     router = {
         "method": method_handler
     }
-    store = None
+    store = Store(RedisStorage(), MAX_CONNECT_RETRIES)
+    store.connect()
 
     def get_request_id(self, headers):
         return headers.get('HTTP_X_REQUEST_ID', uuid.uuid4().hex)
