@@ -12,6 +12,7 @@ class RedisStorage:
     def __init__(self, host=REDIS_HOST, port=REDIS_PORT, timeout=REDIS_TIMEOUT):
         self.host = host
         self.port = port
+        self.db=None
         self.timeout = timeout
 
     def connect(self):
@@ -58,15 +59,7 @@ class Store:
         self.storage.connect()
 
     def get(self, key):
-        num_retries = 0
-        while num_retries < self.max_retries:
-            try:
-                return self.storage.get(key)
-            except ConnectionError:
-                self.storage.connect()
-                num_retries += 1
-                if num_retries > self.max_retries:
-                    raise ConnectionError
+        return self.storage.get(key)
 
     def cache_get(self, key):
         num_retries = 0
