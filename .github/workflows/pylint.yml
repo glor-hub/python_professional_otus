@@ -25,9 +25,8 @@ jobs:
         pylint $(git ls-files '*.py')
     - name: Install redis
       run: |
-        sudo apt-get install -y redis-tools redis-server
+        sudo apt-get install -y redis-server
     - name: Run python tests
       run: |
         cd homework4
-        redis-server
         python -m unittest
