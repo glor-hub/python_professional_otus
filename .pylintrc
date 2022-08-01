@@ -122,7 +122,10 @@ disable=raw-checker-failed,
         arguments-renamed,
         bad-mcs-classmethod-argument,
         bare-except,
-        useless-return
+        useless-return,
+        too-many-arguments,
+        redefined-outer-name
+
         
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
