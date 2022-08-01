@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import fakeredis
 
 import store
@@ -52,3 +52,4 @@ class TestStoreOnConnectError(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+    
