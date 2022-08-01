@@ -26,5 +26,5 @@ jobs:
     - name: Run python tests
       run: |
         cd homework4
-        redis-server --daemonize yes
+        redis-server --6379
         python -m unittest
