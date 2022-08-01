@@ -26,5 +26,4 @@ jobs:
     - name: Run python tests
       run: |
         cd homework4
-        redis-server --6379
         python -m unittest
