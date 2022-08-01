@@ -7,6 +7,7 @@ authors = ["\"InInna Sorina <sorina-inna@yandex.ru>"]
 [tool.poetry.dependencies]
 python = "^3.8"
 redis = "^4.3.4"
+fakeredis = "^1.9.0"
 
 [tool.poetry.dev-dependencies]
 
