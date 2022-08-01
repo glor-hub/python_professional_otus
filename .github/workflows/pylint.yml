@@ -18,10 +18,13 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install pylint
+        pip install redis
+        pip install fakeredis
     - name: Analysing the code with pylint
       run: |
         pylint $(git ls-files '*.py')
     - name: Run python tests
       run: |
-        cd homework1
+        cd homework4
+        redis-server --daemonize yes
         python -m unittest
