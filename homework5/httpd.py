@@ -9,12 +9,12 @@ from server import TCPThreadingServer
 
 from multiprocessing import Process
 
-SERVER_HOST='localhost'
+SERVER_HOST = 'localhost'
 SERVER_PORT = 8080
-SERVER_REQUEST_QUEUE_SIZE=5
-CLIENT_TIMEOUT = 10
+SERVER_NAME = 'TCPServer'
+SERVER_REQUEST_QUEUE_SIZE = 5
+CLIENT_TIMEOUT = 5
 DEFAULT_DOCUMENT_ROOT_PATH = '.'
-
 
 
 def dir_path(path):
@@ -61,7 +61,7 @@ def logging_init(logging_file):
                         level=logging.INFO)
 
 
-def run_workers(workers,run_server):
+def run_workers(workers, run_server):
     workers = []
     try:
         for _ in range(workers_count):
@@ -77,17 +77,21 @@ def run_workers(workers,run_server):
             logging.info("Process %d was terminated ", worker.pid)
         logging.exception('Interrupted by user')
 
+
 if __name__ == '__main__':
     logging_init(None)
-    port,root_path,workers_count= get_args()
-    server=TCPThreadingServer(
-        SERVER_HOST,SERVER_PORT,
+    port, root_path, workers_count = get_args()
+    server = TCPThreadingServer(
+        SERVER_HOST,
+        port,
+        SERVER_NAME,
         SERVER_REQUEST_QUEUE_SIZE,
-        CLIENT_TIMEOUT
+        CLIENT_TIMEOUT,
+        root_path
     )
     logging.info("Start server listening")
     try:
-        run_workers(workers_count,server.run_server)
+        run_workers(workers_count, server.run_server)
     except Exception:
         logging.exception("Unexpected error occurred")
         raise
