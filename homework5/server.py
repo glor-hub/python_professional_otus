@@ -6,6 +6,8 @@ import socket
 import threading
 from time import strftime, gmtime
 
+PROTOCOL_TYPE = 'HTTP/1.1'
+
 ALLOWED_CONTENT_TYPES = (
     'text/css',
     'text/html',
@@ -14,8 +16,23 @@ ALLOWED_CONTENT_TYPES = (
     'image/jpeg',
     'image/png',
     'image/gif',
+    'text/plain',
     'application/x-shockwave-flash'
 )
+
+OK = 200
+BAD_REQUEST = 400
+FORBIDDEN = 403
+NOT_FOUND = 404
+NOT_ALLOWED = 405
+
+RESPONSE_STATUS_CODES = {
+    OK: 'OK',
+    BAD_REQUEST: 'Bad Request',
+    NOT_FOUND: 'Not Found',
+    FORBIDDEN: 'Forbidden',
+    NOT_ALLOWED: 'Method Not Allowed',
+}
 
 
 class TCPThreadingServer:
@@ -40,80 +57,86 @@ class TCPThreadingServer:
     def accept(self):
         return self._socket.accept()
 
-    def request_handler(self, client_socket):
-        req = {}
-        headers = {}
-        protocol_type = 'HTTP/1.1'
-        headers['Content-Type'] = 'text/html;charset=utf-8'
-        request = client_socket.recv(1024)
-        logging.info(f'Received request: {request}')
-        request = request.decode('utf-8')
+    def parse_request(self, request):
         req_list = request.split('\r\n')
         print(req_list)
         req_start_line = req_list[0].split(' ')
-        req['method'] = req_start_line[0]
+        self.method = req_start_line[0]
         while '%20' in req_start_line[1]:
-            req_start_line[1]=req_start_line[1].replace('%20', '')
+            req_start_line[1] = req_start_line[1].replace('%20', '')
             print(req_start_line[1])
-        req['url'] = req_start_line[1][1:]
-        req['protocol'] = req_start_line[2]
-        print(f'req: {req}')
-        if req['protocol'] != 'HTTP/1.1':
-            status_code = '505 HTTP Version Not Supported'
-            message_body='<html>505 HTTP Version Not Supported</html>'
+        self.url = req_start_line[1][1:]
+        self.protocol = req_start_line[2]
+
+    def get_path(self, url):
+        path = os.path.join(self.root_path, url)
+        if url == '':
+            file = os.path.join(self.root_path, 'index.html')
+        elif '.' in url and os.path.isfile(path):
+            file = path
+        elif os.path.isdir(path):
+            file = os.path.join(path, 'index.html')
         else:
-            if req['method'] != 'GET' and req['method'] != 'HEAD':
-                status_code = '405 Method Not Allowed'
-                message_body = '<html>405 Method Not Allowed</html>'
+            file = None
+        return file
+
+    def get_response_headers(self, code, type, length):
+        headers = {}
+        if code != OK:
+            headers['Content-Type'] = 'text/html; charset=utf-8'
+            headers['Content-Length'] = 0
+            headers['Connection'] = 'close'
+        else:
+            if self.method == 'HEAD':
+                headers['Content-Length'] = 0
+                headers['Connection'] = 'keep-alive'
             else:
-                path=os.path.join(self.root_path, req['url'])
-                if req['url'] == '':
-                    file = os.path.join(self.root_path, 'index.html')
-                elif '.' in req['url'] and os.path.isfile(path):
-                    file = path
-                elif os.path.isdir(path):
-                    file = os.path.join(path,'index.html')
-                else:
-                    file=None
                 headers['Date'] = self.get_date_time()
                 headers['Server'] = self.server_name
+                headers['Content-Type'] = type
+                headers['Content-Length'] = length
                 headers['Connection'] = 'keep-alive'
-                print(f'file: {file}')
-                if not file:
-                    status_code = '404 Not Found'
-                    message_body = '<html>404 Not Found</html>'
+        return headers
+
+    def request_handler(self, client_socket):
+        c_type = None
+        c_length = 0
+        response_body = None
+        request = client_socket.recv(1024)
+        logging.info(f'Received request: {request}')
+        request = request.decode('utf-8')
+        self.parse_request(request)
+        file = self.get_path(self.url)
+        if self.method != 'GET' and self.method != 'HEAD':
+            status_code = NOT_ALLOWED
+        else:
+            if not file:
+                status_code = NOT_FOUND
+            else:
+                try:
+                    with open(file, 'rb') as f:
+                        response_body = f.read().decode('utf-8')
+                except Exception as e:
+                    status_code = NOT_FOUND
+                    logging.exception(f'Exception {e}')
                 else:
                     try:
-                        with open(file, 'rb') as f:
-                            message_body = f.read().decode('utf-8')
+                        c_type, _ = mimetypes.guess_type(file)
+                        if c_type not in ALLOWED_CONTENT_TYPES:
+                            status_code = NOT_ALLOWED
+                        else:
+                            status_code = OK
+                            c_length = os.path.getsize(file)
                     except Exception as e:
-                        status_code = '404 Not Found'
-                        message_body = '<html>404 Not Found</html>'
+                        status_code = NOT_FOUND
                         logging.exception(f'Exception {e}')
-                    else:
-                        try:
-                            (content_type, _) = mimetypes.guess_type(file)
-                            if content_type not in ALLOWED_CONTENT_TYPES:
-                                status_code = '405 Method Not Allowed'
-                                message_body = '<html>405 Method Not Allowed</html>'
-                            else:
-                                headers['Content-Type'] = content_type
-                                status_code = '200 OK'
-                                file_size = os.path.getsize(file)
-                                headers['Content-Length'] = file_size
-                        except Exception as e:
-                            status_code = '404 Not Found'
-                            message_body = '<html>404 Not Found</html>'
-                            logging.exception(f'Exception {e}')
-                if req['method'] == 'HEAD':
-                    headers['Content-Length'] = 0
-                    message_body = None
-        start_line = ''.join('%s %s' % (protocol_type, status_code))
+        headers = self.get_response_headers(status_code, c_type, c_length)
+        start_line = ''.join('%s %s' % (PROTOCOL_TYPE, status_code))
         print('start_line:', start_line)
         print('headers:', headers)
-        print('message_body:', message_body)
+        print('message_body:', response_body)
         headers = '\r\n'.join('%s: %s' % (k, v) for k, v in headers.items())
-        response = ''.join('%s\r\n%s\r\n\r\n%s' % (start_line, headers, message_body))
+        response = ''.join('%s\r\n%s\r\n\r\n%s' % (start_line, headers, response_body))
         client_socket.send(response.encode('utf-8'))
 
     @staticmethod
