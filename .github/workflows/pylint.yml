@@ -23,5 +23,5 @@ jobs:
         pylint $(git ls-files '*.py')
     - name: Run python tests
       run: |
-        cd homework1
-        python -m unittest
+        cd homework5
+        python -m unittest httptest.py
