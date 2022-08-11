@@ -5,6 +5,7 @@ import os
 import socket
 import threading
 from time import strftime, gmtime
+from urllib.parse import urlparse, unquote
 
 PROTOCOL_TYPE = 'HTTP/1.1'
 
@@ -57,6 +58,10 @@ class TCPThreadingServer:
     def accept(self):
         return self._socket.accept()
 
+    def close(self):
+        return self._socket.close()
+
+
     def parse_request(self, request):
         req_list = request.split('\r\n')
         print(req_list)
@@ -68,13 +73,17 @@ class TCPThreadingServer:
         self.url = req_start_line[1][1:]
         self.protocol = req_start_line[2]
 
-    def get_path(self, url):
-        path = os.path.join(self.root_path, url)
-        if url == '':
+    def get_path(self, url_raw):
+        url=unquote(url_raw).replace(' ','')
+        parsed_url=urlparse(url)
+        path=parsed_url.path
+        # query=parsed_url.query
+        if path == '':
             file = os.path.join(self.root_path, 'index.html')
-        elif '.' in url and os.path.isfile(path):
-            file = path
+        elif os.path.isfile(path):
+            file = os.path.join(self.root_path, path)
         elif os.path.isdir(path):
+            path = os.path.join(self.root_path, path)
             file = os.path.join(path, 'index.html')
         else:
             file = None
@@ -87,60 +96,59 @@ class TCPThreadingServer:
             headers['Content-Length'] = 0
             headers['Connection'] = 'close'
         else:
-            # if self.method == 'HEAD':
-            #     headers['Content-Length'] = 0
-            #     headers['Connection'] = 'keep-alive'
-            # else:
             headers['Date'] = self.get_date_time()
             headers['Server'] = self.server_name
             headers['Content-Type'] = type
             headers['Content-Length'] = length
-            if self.method == 'GET':
-                headers['Connection'] = 'keep-alive'
-            if self.method == 'HEAD':
-                headers['Connection'] = 'close'
+            headers['Connection'] = 'keep-alive'
         return headers
+
+    def get_response(self):
+        if self.status_code != OK or self.method=='HEAD':
+            response = ''.join('%s\r\n%s\r\n\r\n' % (self.start_line, self.headers))
+        else:
+            response = ''.join('%s\r\n%s\r\n\r\n%s' % (self.start_line, self.headers, self.response_body))
+        return response
 
     def request_handler(self, client_socket):
         c_type = None
         c_length = 0
-        response_body = None
+        resp_body = None
         request = client_socket.recv(1024)
         logging.info(f'Received request: {request}')
         request = request.decode('utf-8')
         self.parse_request(request)
         file = self.get_path(self.url)
         if self.method != 'GET' and self.method != 'HEAD':
-            status_code = NOT_ALLOWED
+            code = NOT_ALLOWED
         else:
             if not file:
-                status_code = NOT_FOUND
+                code = NOT_FOUND
             else:
                 try:
                     with open(file, 'rb') as f:
-                        response_body = f.read()
+                        resp_body = f.read()
                 except Exception as e:
-                    status_code = NOT_FOUND
+                    code = NOT_FOUND
                     logging.exception(f'Exception {e}')
                 else:
                     try:
                         c_type, _ = mimetypes.guess_type(file)
                         if c_type not in ALLOWED_CONTENT_TYPES:
-                            status_code = NOT_ALLOWED
+                            code = NOT_ALLOWED
                         else:
-                            status_code = OK
+                            code = OK
                             c_length = os.path.getsize(file)
                     except Exception as e:
-                        status_code = NOT_FOUND
+                        code = NOT_FOUND
                         logging.exception(f'Exception {e}')
-        headers = self.get_response_headers(status_code, c_type, c_length)
-        start_line = ''.join('%s %s %s' % (PROTOCOL_TYPE, status_code,RESPONSE_STATUS_CODES[status_code] ))
-        headers = '\r\n'.join('%s: %s' % (k, v) for k, v in headers.items())
-        if self.method =='HEAD':
-            response = ''.join('%s\r\n%s\r\n\r\n' % (start_line, headers))
-        else:
-            response = ''.join('%s\r\n%s\r\n\r\n%s' % (start_line, headers, response_body))
-        # print(response)
+        headers = self.get_response_headers(code, c_type, c_length)
+        self.start_line = ''.join('%s %s %s' % (PROTOCOL_TYPE, code,RESPONSE_STATUS_CODES[status_code] ))
+        self.status_code=code
+        self.headers = '\r\n'.join('%s: %s' % (k, v) for k, v in headers.items())
+        self.response_body=resp_body
+        response = self.get_response()
+        print(response)
         client_socket.send(response.encode('utf-8'))
 
     @staticmethod
@@ -149,11 +157,15 @@ class TCPThreadingServer:
 
     def run_server(self):
         while True:
-            client_socket, client_address = self.accept()
-            client_socket.settimeout(self.client_timeout)
-            t = threading.Thread(
-                target=self.request_handler,
-                args=(client_socket,)
-            )
-            t.daemon = True
-            t.start()
+            try:
+                client_socket, client_address = self.accept()
+                client_socket.settimeout(self.client_timeout)
+                t = threading.Thread(
+                    target=self.request_handler,
+                    args=(client_socket,)
+                )
+                t.daemon = True
+                t.start()
+                logging.info("Request handler running on the tread %d", t.name)
+            except socket.error:
+                self.close()
