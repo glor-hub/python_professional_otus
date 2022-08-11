@@ -50,7 +50,7 @@ def get_args():
     )
     args = parser.parse_args()
     workers_count = args.workers if args.workers > 0 else 1
-    return (args.port, args.root_path, args.workers)
+    return (args.port, args.root_path,  workers_count)
 
 
 def logging_init(logging_file):
@@ -61,7 +61,7 @@ def logging_init(logging_file):
                         level=logging.INFO)
 
 
-def run_workers(workers, run_server):
+def run_workers(workers_count, run_server):
     workers = []
     try:
         for _ in range(workers_count):

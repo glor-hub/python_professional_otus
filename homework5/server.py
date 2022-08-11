@@ -83,6 +83,8 @@ class TCPThreadingServer:
             file = path
         elif os.path.isdir(path):
             file = os.path.join(path, 'index.html')
+            if not os.path.exists(file):
+                file = None
         else:
             file = None
         return file
@@ -98,7 +100,7 @@ class TCPThreadingServer:
             headers['Server'] = self.server_name
             headers['Content-Type'] = type
             headers['Content-Length'] = length
-            headers['Connection'] = 'keep-alive'
+            headers['Connection'] = 'close'
         return headers
 
     def get_response(self):
@@ -154,7 +156,7 @@ class TCPThreadingServer:
         self.response_body=resp_body
         response = self.get_response()
         print('response:',response)
-        client_socket.sendall(response.encode('utf-8'))
+        client_socket.send(response.encode('utf-8'))
 
     @staticmethod
     def get_date_time():
