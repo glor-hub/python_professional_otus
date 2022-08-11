@@ -115,7 +115,19 @@ disable=raw-checker-failed,
         broad-except,
         used-before-assignment,
         consider-iterating-dictionary,
-        too-many-format-args
+        too-many-format-args,
+        too-many-locals,
+        too-many-branches,
+        unused-variable,
+        too-many-public-methods,
+        too-many-instance-attributes,
+        too-many-arguments,
+        redefined-builtin,
+        logging-fstring-interpolation,
+        consider-using-in,
+        redefined-outer-name,
+        attribute-defined-outside-init
+
         
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
