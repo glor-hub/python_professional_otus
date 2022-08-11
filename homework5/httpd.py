@@ -67,14 +67,14 @@ def run_workers(workers, run_server):
         for _ in range(workers_count):
             worker = Process(target=run_server)
             worker.start()
-            logging.info("Server running on the process %d", worker.pid)
+            logging.info(f'Server running on the process {worker.pid}')
             workers.append(worker)
         for worker in workers:
             worker.join()
     except KeyboardInterrupt:
         for worker in workers:
             worker.terminate()
-            logging.info("Process %d was terminated ", worker.pid)
+            logging.info(f'Process  {worker.pid} was terminated ')
         logging.exception('Interrupted by user')
 
 
