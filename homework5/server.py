@@ -87,15 +87,18 @@ class TCPThreadingServer:
             headers['Content-Length'] = 0
             headers['Connection'] = 'close'
         else:
+            # if self.method == 'HEAD':
+            #     headers['Content-Length'] = 0
+            #     headers['Connection'] = 'keep-alive'
+            # else:
+            headers['Date'] = self.get_date_time()
+            headers['Server'] = self.server_name
+            headers['Content-Type'] = type
+            headers['Content-Length'] = length
+            if self.method == 'GET':
+                headers['Connection'] = 'keep-alive'
             if self.method == 'HEAD':
-                headers['Content-Length'] = 0
-                headers['Connection'] = 'keep-alive'
-            else:
-                headers['Date'] = self.get_date_time()
-                headers['Server'] = self.server_name
-                headers['Content-Type'] = type
-                headers['Content-Length'] = length
-                headers['Connection'] = 'keep-alive'
+                headers['Connection'] = 'close'
         return headers
 
     def request_handler(self, client_socket):
@@ -115,7 +118,7 @@ class TCPThreadingServer:
             else:
                 try:
                     with open(file, 'rb') as f:
-                        response_body = f.read().decode('utf-8')
+                        response_body = f.read()
                 except Exception as e:
                     status_code = NOT_FOUND
                     logging.exception(f'Exception {e}')
@@ -131,12 +134,13 @@ class TCPThreadingServer:
                         status_code = NOT_FOUND
                         logging.exception(f'Exception {e}')
         headers = self.get_response_headers(status_code, c_type, c_length)
-        start_line = ''.join('%s %s' % (PROTOCOL_TYPE, status_code))
-        print('start_line:', start_line)
-        print('headers:', headers)
-        print('message_body:', response_body)
+        start_line = ''.join('%s %s %s' % (PROTOCOL_TYPE, status_code,RESPONSE_STATUS_CODES[status_code] ))
         headers = '\r\n'.join('%s: %s' % (k, v) for k, v in headers.items())
-        response = ''.join('%s\r\n%s\r\n\r\n%s' % (start_line, headers, response_body))
+        if self.method =='HEAD':
+            response = ''.join('%s\r\n%s\r\n\r\n' % (start_line, headers))
+        else:
+            response = ''.join('%s\r\n%s\r\n\r\n%s' % (start_line, headers, response_body))
+        # print(response)
         client_socket.send(response.encode('utf-8'))
 
     @staticmethod
