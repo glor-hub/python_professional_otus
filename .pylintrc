@@ -126,7 +126,12 @@ disable=raw-checker-failed,
         logging-fstring-interpolation,
         consider-using-in,
         redefined-outer-name,
-        attribute-defined-outside-init
+        attribute-defined-outside-init,
+        wrong-import-order,
+        superfluous-parens,
+        anomalous-backslash-in-string,
+        wrong-import-position,
+        import-error
 
         
 # Enable the message, report, category or checker with the given id(s). You can
