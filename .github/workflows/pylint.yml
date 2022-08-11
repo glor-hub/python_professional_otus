@@ -23,6 +23,7 @@ jobs:
         pylint $(git ls-files '*.py')
     - name: Run webserver
       run: |
+        cd homework5
         python3 httpd.py -w 3
     - name: Run python tests
       run: |
