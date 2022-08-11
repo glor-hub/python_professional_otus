@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+
 import logging
 import mimetypes
 import os
@@ -67,23 +67,21 @@ class TCPThreadingServer:
         print(req_list)
         req_start_line = req_list[0].split(' ')
         self.method = req_start_line[0]
-        while '%20' in req_start_line[1]:
-            req_start_line[1] = req_start_line[1].replace('%20', '')
-            print(req_start_line[1])
         self.url = req_start_line[1][1:]
         self.protocol = req_start_line[2]
 
     def get_path(self, url_raw):
-        url=unquote(url_raw).replace(' ','')
+        url=unquote(url_raw)
         parsed_url=urlparse(url)
         path=parsed_url.path
         # query=parsed_url.query
-        if path == '':
-            file = os.path.join(self.root_path, 'index.html')
+        path = os.path.join(self.root_path, path)
+        print('path:',path)
+        if path == self.root_path:
+            file = os.path.join(path, 'index.html')
         elif os.path.isfile(path):
-            file = os.path.join(self.root_path, path)
+            file = path
         elif os.path.isdir(path):
-            path = os.path.join(self.root_path, path)
             file = os.path.join(path, 'index.html')
         else:
             file = None
@@ -119,37 +117,44 @@ class TCPThreadingServer:
         request = request.decode('utf-8')
         self.parse_request(request)
         file = self.get_path(self.url)
+        print('file:', file)
         if self.method != 'GET' and self.method != 'HEAD':
             code = NOT_ALLOWED
         else:
             if not file:
                 code = NOT_FOUND
             else:
+                c_length = os.path.getsize(file)
                 try:
-                    with open(file, 'rb') as f:
-                        resp_body = f.read()
+                    c_type, _ = mimetypes.guess_type(file)
+                    if c_type not in ALLOWED_CONTENT_TYPES:
+                        code = FORBIDDEN
+                    else:
+                        try:
+                            with open(file, 'r') as f:
+                                resp_body = f.read()
+                                code = OK
+                        except Exception as e:
+                            # code = NOT_FOUND
+                            logging.exception(f'Exception {e}')
+                            try:
+                                with open(file, 'rb') as f:
+                                    resp_body = f.read()
+                                    code = OK
+                            except Exception as e:
+                                code = NOT_FOUND
+                                logging.exception(f'Exception {e}')
                 except Exception as e:
                     code = NOT_FOUND
                     logging.exception(f'Exception {e}')
-                else:
-                    try:
-                        c_type, _ = mimetypes.guess_type(file)
-                        if c_type not in ALLOWED_CONTENT_TYPES:
-                            code = NOT_ALLOWED
-                        else:
-                            code = OK
-                            c_length = os.path.getsize(file)
-                    except Exception as e:
-                        code = NOT_FOUND
-                        logging.exception(f'Exception {e}')
         headers = self.get_response_headers(code, c_type, c_length)
-        self.start_line = ''.join('%s %s %s' % (PROTOCOL_TYPE, code,RESPONSE_STATUS_CODES[status_code] ))
+        self.start_line = ''.join('%s %s %s' % (PROTOCOL_TYPE, code,RESPONSE_STATUS_CODES[code] ))
         self.status_code=code
         self.headers = '\r\n'.join('%s: %s' % (k, v) for k, v in headers.items())
         self.response_body=resp_body
         response = self.get_response()
-        print(response)
-        client_socket.send(response.encode('utf-8'))
+        print('response:',response)
+        client_socket.sendall(response.encode('utf-8'))
 
     @staticmethod
     def get_date_time():
@@ -166,6 +171,6 @@ class TCPThreadingServer:
                 )
                 t.daemon = True
                 t.start()
-                logging.info("Request handler running on the tread %d", t.name)
+                logging.info(f'Request handler running on the tread {t.name}')
             except socket.error:
                 self.close()
