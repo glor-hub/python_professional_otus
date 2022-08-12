@@ -47,4 +47,5 @@ jobs:
       - name: Run webserver and python tests
         run: |
           cd homework5
+          sleep 5
           python -m unittest httptest.py
