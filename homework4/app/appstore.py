@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 import logging
-
+import time
 import redis
+
 
 REDIS_HOST = 'localhost'
 REDIS_PORT = 6379
-REDIS_TIMEOUT = 2
-
+REDIS_TIMEOUT = 3
 
 class RedisStorage:
     def __init__(self, host=REDIS_HOST, port=REDIS_PORT, timeout=REDIS_TIMEOUT):
@@ -51,15 +51,24 @@ class RedisStorage:
 
 
 class Store:
-    def __init__(self, storage, max_retries):
+    def __init__(self, storage, max_retries,interval_retries):
         self.storage = storage
         self.max_retries = max_retries
+        self.interval_retries=interval_retries
 
     def connect(self):
         self.storage.connect()
 
     def get(self, key):
-        return self.storage.get(key)
+        num_retries = 0
+        while num_retries < self.max_retries:
+            try:
+                return self.storage.get(key)
+            except ConnectionError:
+                self.storage.connect()
+                num_retries += 1
+                time.sleep(self.interval_retries * 2 ** num_retries)
+        raise ConnectionError
 
     def cache_get(self, key):
         num_retries = 0
@@ -69,8 +78,8 @@ class Store:
             except ConnectionError:
                 self.storage.connect()
                 num_retries += 1
-                if num_retries > self.max_retries:
-                    raise ConnectionError
+                time.sleep(self.interval_retries*2**num_retries)
+        raise ConnectionError
 
     def cache_set(self, key, value, expire=0):
         num_retries = 0
@@ -80,5 +89,5 @@ class Store:
             except ConnectionError:
                 self.storage.connect()
                 num_retries += 1
-                if num_retries > self.max_retries:
-                    raise ConnectionError
+                time.sleep(self.interval_retries*2**num_retries)
+        raise ConnectionError

@@ -1,28 +1,17 @@
 import hashlib
 import datetime
-import functools
 import unittest
 
-import store
-import api
+from tests.cases import cases
 
-
-def cases(cases):
-    def decorator(f):
-        @functools.wraps(f)
-        def wrapper(*args):
-            for c in cases:
-                new_args = args + (c if isinstance(c, tuple) else (c,))
-                f(*new_args)
-        return wrapper
-    return decorator
-
+from app import appstore
+from app import api
 
 class TestSuite(unittest.TestCase):
     def setUp(self):
         self.context = {}
         self.headers = {}
-        self.settings = store.Store(store.RedisStorage(), api.MAX_CONNECT_RETRIES)
+        self.settings = appstore.Store(appstore.RedisStorage(), api.MAX_CONNECT_RETRIES, api.BASE_RETRIES_INTERVAL)
         self.settings.connect()
 
     def get_response(self, request):

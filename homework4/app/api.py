@@ -11,8 +11,8 @@ import uuid
 from optparse import OptionParser
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from http import HTTPStatus
-from scoring import get_score, get_interests
-from store import RedisStorage, Store
+from app.scoring import get_score, get_interests
+from app.appstore import RedisStorage, Store
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
@@ -44,7 +44,9 @@ GENDERS = {
 EMPTY_VALUES = (None, '', [], (), {})
 LIMIT_AGE = 70
 
-MAX_CONNECT_RETRIES=10
+MAX_CONNECT_RETRIES =3
+BASE_RETRIES_INTERVAL = 1
+
 
 class ValidationError(Exception):
     pass
@@ -199,6 +201,7 @@ class OnlineScoreRequest(Request):
             return False
         return True
 
+
 class MethodRequest(Request):
     account = CharField(required=False, nullable=True)
     login = CharField(required=True, nullable=True)
@@ -209,6 +212,7 @@ class MethodRequest(Request):
     @property
     def is_admin(self):
         return self.login.name == ADMIN_LOGIN
+
 
 class RequestHandlerABC(metaclass=ABCMeta):
     def __init__(self, ctx, store, non_empty_fields, request):
@@ -290,7 +294,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
     router = {
         "method": method_handler
     }
-    store = Store(RedisStorage(), MAX_CONNECT_RETRIES)
+    store = Store(RedisStorage(), MAX_CONNECT_RETRIES, BASE_RETRIES_INTERVAL)
     store.connect()
 
     def get_request_id(self, headers):
