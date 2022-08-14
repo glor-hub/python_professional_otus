@@ -124,8 +124,9 @@ disable=raw-checker-failed,
         bare-except,
         useless-return,
         too-many-arguments,
-        redefined-outer-name
-
+        redefined-outer-name,
+        no-name-in-module
+        
         
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
