@@ -42,9 +42,6 @@ class TestStoreOnConnectError(unittest.TestCase):
     def with_raise_connection(self):
         self.redis_storage.connect= Mock(side_effect=ConnectionError)
 
-    def with_raise_connection(self):
-        self.redis_storage.connect = Mock(side_effect=ConnectionError)
-
     def test_raises_set_and_get_data_to_db(self):
         with self.assertRaises(ConnectionError):
             self.redis_storage.set("key1","value1",20)
