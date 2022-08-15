@@ -79,7 +79,7 @@ class Store:
                 self.storage.connect()
                 num_retries += 1
                 time.sleep(self.interval_retries*2**num_retries)
-        raise ConnectionError
+        return None
 
     def cache_set(self, key, value, expire=0):
         num_retries = 0
@@ -90,4 +90,4 @@ class Store:
                 self.storage.connect()
                 num_retries += 1
                 time.sleep(self.interval_retries*2**num_retries)
-        raise ConnectionError
+        return None
