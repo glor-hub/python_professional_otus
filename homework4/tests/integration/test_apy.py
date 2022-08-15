@@ -2,7 +2,7 @@ import hashlib
 import datetime
 import unittest
 
-from tests.cases import cases
+from tests.helper import cases
 
 from app import appstore
 from app import api

@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime
 
-from tests.cases import cases
+from tests.helper import cases
 
 from app import api
 
