@@ -125,7 +125,8 @@ disable=raw-checker-failed,
         useless-return,
         too-many-arguments,
         redefined-outer-name,
-        no-name-in-module
+        no-name-in-module,
+        logging-fstring-interpolation
         
         
 # Enable the message, report, category or checker with the given id(s). You can
