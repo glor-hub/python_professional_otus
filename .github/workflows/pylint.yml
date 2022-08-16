@@ -1,6 +1,11 @@
 name: Pylint
 
 on: [push]
+env:
+  #Set environment variables
+  REDIS_HOST: 'localhost'
+  REDIS_PORT:  6379
+  REDIS_TIMEOUT: 3
 
 jobs:
   build:
