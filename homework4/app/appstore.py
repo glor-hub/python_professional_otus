@@ -3,10 +3,7 @@ import logging
 import time
 import redis
 
-
-REDIS_HOST = 'localhost'
-REDIS_PORT = 6379
-REDIS_TIMEOUT = 3
+from config import REDIS_HOST, REDIS_PORT,REDIS_TIMEOUT
 
 class RedisStorage:
     def __init__(self, host=REDIS_HOST, port=REDIS_PORT, timeout=REDIS_TIMEOUT):
