@@ -4,14 +4,14 @@ import unittest
 
 from tests.helper import cases
 
-from app import appstore
+from app import store
 from app import api
 
 class TestSuite(unittest.TestCase):
     def setUp(self):
         self.context = {}
         self.headers = {}
-        self.settings = appstore.Store(appstore.RedisStorage(), api.MAX_CONNECT_RETRIES, api.BASE_RETRIES_INTERVAL)
+        self.settings = store.Store(store.RedisStorage(), api.MAX_CONNECT_RETRIES, api.BASE_RETRIES_INTERVAL)
         self.settings.connect()
 
     def get_response(self, request):

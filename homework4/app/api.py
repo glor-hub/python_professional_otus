@@ -12,7 +12,7 @@ from optparse import OptionParser
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from http import HTTPStatus
 from app.scoring import get_score, get_interests
-from app.appstore import RedisStorage, Store
+from app.store import RedisStorage, Store
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
