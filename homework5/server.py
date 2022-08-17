@@ -1,4 +1,3 @@
-
 import logging
 import mimetypes
 import os
@@ -37,7 +36,8 @@ RESPONSE_STATUS_CODES = {
 
 
 class TCPThreadingServer:
-    def __init__(self, host, port, name, request_queue_size, client_timeout, root_path, address_family=socket.AF_INET,
+    def __init__(self, host, port, name, request_queue_size, client_timeout,
+                 root_path, address_family=socket.AF_INET,
                  socket_type=socket.SOCK_STREAM,
                  bind_and_activate=True):
         self.server_address = (host, port)
@@ -61,7 +61,6 @@ class TCPThreadingServer:
     def close(self):
         return self._socket.close()
 
-
     def parse_request(self, request):
         req_list = request.split('\r\n')
         print(req_list)
@@ -71,20 +70,16 @@ class TCPThreadingServer:
         self.protocol = req_start_line[2]
 
     def get_path(self, url_raw):
-        url=unquote(url_raw)
-        parsed_url=urlparse(url)
-        path=parsed_url.path
-        # query=parsed_url.query
-        path = os.path.join(self.root_path, path)
-        print('path:',path)
-        if path == self.root_path:
+        url = unquote(url_raw)
+        parsed_url = urlparse(url)
+        path = parsed_url.path
+        path = os.path.join(self.root_path, os.path.normpath(path))
+        if os.path.isdir(path):
             file = os.path.join(path, 'index.html')
+            if not os.path.isfile(file):
+                file = None
         elif os.path.isfile(path):
             file = path
-        elif os.path.isdir(path):
-            file = os.path.join(path, 'index.html')
-            if not os.path.exists(file):
-                file = None
         else:
             file = None
         return file
@@ -104,7 +99,7 @@ class TCPThreadingServer:
         return headers
 
     def get_response(self):
-        if self.status_code != OK or self.method=='HEAD':
+        if self.status_code != OK or self.method == 'HEAD':
             response = ''.join('%s\r\n%s\r\n\r\n' % (self.start_line, self.headers))
         else:
             response = ''.join('%s\r\n%s\r\n\r\n%s' % (self.start_line, self.headers, self.response_body))
@@ -119,7 +114,6 @@ class TCPThreadingServer:
         request = request.decode('utf-8')
         self.parse_request(request)
         file = self.get_path(self.url)
-        print('file:', file)
         if self.method != 'GET' and self.method != 'HEAD':
             code = NOT_ALLOWED
         else:
@@ -150,12 +144,12 @@ class TCPThreadingServer:
                     code = NOT_FOUND
                     logging.exception(f'Exception {e}')
         headers = self.get_response_headers(code, c_type, c_length)
-        self.start_line = ''.join('%s %s %s' % (PROTOCOL_TYPE, code,RESPONSE_STATUS_CODES[code] ))
-        self.status_code=code
+        self.start_line = ''.join('%s %s %s' % (PROTOCOL_TYPE, code, RESPONSE_STATUS_CODES[code]))
+        self.status_code = code
         self.headers = '\r\n'.join('%s: %s' % (k, v) for k, v in headers.items())
-        self.response_body=resp_body
+        self.response_body = resp_body
         response = self.get_response()
-        print('response:',response)
+        print('response:', response)
         client_socket.send(response.encode('utf-8'))
 
     @staticmethod
