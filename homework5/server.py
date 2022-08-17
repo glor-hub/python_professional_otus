@@ -65,8 +65,8 @@ class TCPThreadingServer:
         req_list = request.split('\r\n')
         req_start_line = req_list[0].split(' ')
         self.method = req_start_line[0]
-        self.url = req_start_line[1][1:] if len(req_start_line > 1) else ''
-        self.protocol = req_start_line[2] if len(req_start_line > 2) else ''
+        self.url = req_start_line[1][1:] if len(req_start_line) > 1 else ''
+        self.protocol = req_start_line[2] if len(req_start_line) > 2 else ''
 
     def get_path(self, url_raw):
         url = unquote(url_raw)
