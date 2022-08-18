@@ -7,6 +7,7 @@ from time import strftime, gmtime
 from urllib.parse import urlparse, unquote
 
 PROTOCOL_TYPE = 'HTTP/1.1'
+CHUNK_SIZE = 1024
 
 ALLOWED_CONTENT_TYPES = (
     'text/css',
@@ -47,16 +48,20 @@ class TCPThreadingServer:
         self.request_queue_size = request_queue_size
         self.client_timeout = client_timeout
         self.root_path = root_path
+        self.chunk_size = CHUNK_SIZE
         self._socket = None
         if bind_and_activate:
             if self._socket:
                 self._socket.close()
             self._socket = socket.socket(self.addr_family, self.socket_type)
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._socket.bind(self.server_address)
             self._socket.listen(self.request_queue_size)
 
-    def accept(self):
-        return self._socket.accept()
+    def connect(self):
+        conn, addr = self._socket.accept()
+        logging.info("Start server listening")
+        return conn, addr
 
     def close(self):
         return self._socket.close()
@@ -158,7 +163,7 @@ class TCPThreadingServer:
     def run_server(self):
         while True:
             try:
-                client_socket, client_address = self.accept()
+                client_socket, client_address = self.connect()
                 client_socket.settimeout(self.client_timeout)
                 t = threading.Thread(
                     target=self.request_handler,
