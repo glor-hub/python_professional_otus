@@ -1,9 +1,12 @@
+# -*- coding: utf-8 -*-
+
 import logging
 import mimetypes
 import os
 import socket
 from time import strftime, gmtime
 from urllib.parse import urlparse, unquote
+
 
 PROTOCOL_TYPE = 'HTTP/1.1'
 CHUNK_SIZE = 1024
@@ -204,14 +207,20 @@ class TCPServer:
         return request_data
 
     def run_server(self):
+        logging.basicConfig(filename=None,
+                            format='[%(asctime)s] %(levelname).1s %(message)s',
+                            datefmt='%Y-%m-%d %H:%M:%S',
+                            level=logging.INFO)
         while True:
             client_socket, client_address = self.connect()
             client_socket.settimeout(self.client_timeout)
             with client_socket:
                 # recv_data = client_socket.recv(1024)
                 recv_data = self.recvall(client_socket)
-                logging.info(f'Received request: {recv_data}')
+                logging.info(f'Received raw_request: {recv_data}')
                 recv_data = recv_data.decode('utf-8')
+                logging.info(f'Received request: {recv_data}')
                 req_handler = self.RequestHandlerClass(recv_data, self.root_path, self.server_name)
                 response = req_handler.create_response()
+                logging.info(f'Received response: {response}')
                 client_socket.sendall(response.encode('utf-8'))
