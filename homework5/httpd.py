@@ -5,13 +5,13 @@ import logging
 import argparse
 import os
 
-from server import TCPThreadingServer
+from server import TCPServer, RequestHandler
 
 from multiprocessing import Process
 
 SERVER_HOST = 'localhost'
 SERVER_PORT = 8080
-SERVER_NAME = 'TCPServer'
+SERVER_NAME = 'OtusServer'
 SERVER_REQUEST_QUEUE_SIZE = 5
 CLIENT_TIMEOUT = 10
 DEFAULT_DOCUMENT_ROOT_PATH = '.'
@@ -50,7 +50,7 @@ def get_args():
     )
     args = parser.parse_args()
     workers_count = args.workers if args.workers > 0 else 1
-    return (args.port, args.root_path,  workers_count)
+    return (args.port, args.root_path, workers_count)
 
 
 def logging_init(logging_file):
@@ -73,21 +73,23 @@ def run_workers(workers_count, run_server):
             worker.join()
     except KeyboardInterrupt:
         for worker in workers:
-            worker.terminate()
-            logging.info(f'Process  {worker.pid} was terminated ')
+            if worker:
+                worker.terminate()
+                logging.info(f'Process  {worker.pid} was terminated ')
         logging.exception('Interrupted by user')
 
 
 if __name__ == '__main__':
     logging_init(None)
     port, root_path, workers_count = get_args()
-    server = TCPThreadingServer(
+    server = TCPServer(
         SERVER_HOST,
         port,
         SERVER_NAME,
         SERVER_REQUEST_QUEUE_SIZE,
         CLIENT_TIMEOUT,
-        root_path
+        root_path,
+        RequestHandler
     )
     logging.info("Start server listening")
     try:
