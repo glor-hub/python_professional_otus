@@ -7,7 +7,6 @@ import socket
 from time import strftime, gmtime
 from urllib.parse import urlparse, unquote
 
-
 PROTOCOL_TYPE = 'HTTP/1.1'
 CHUNK_SIZE = 1024
 HTTP_HEAD_TERMINATOR = b'\r\n\r\n'
@@ -66,14 +65,16 @@ class RequestHandler():
 
     def get_path(self, url_raw):
         url = unquote(url_raw)
-        parsed_url = urlparse(url)
-        path = parsed_url.path
-        path = os.path.join(self.root_path, os.path.normpath(path))
+        print(f'unquote_path:{url}')
+        parsed_url = urlparse(url).path
+        print(f'urlparse_path:{parsed_url}')
+        path = os.path.join(self.root_path, os.path.normpath(parsed_url))
+        print(f'n_path:{path}')
         if os.path.isdir(path):
             file = os.path.join(path, 'index.html')
             if not os.path.isfile(file):
                 file = None
-        elif os.path.isfile(path):
+        elif os.path.isfile(path) and not parsed_url.endswith('/'):
             file = path
         else:
             file = None
@@ -82,10 +83,10 @@ class RequestHandler():
     def request_handler(self):
         c_type = None
         resp_body = None
-        c_length = 0
         if not self.parse_request():
             return BAD_REQUEST
         method, url, protocol = self.parse_request()
+        fs = 0
         file = self.get_path(url)
         if method not in ALLOWED_METHODS:
             code = NOT_ALLOWED
@@ -93,7 +94,7 @@ class RequestHandler():
             if not file:
                 code = NOT_FOUND
             else:
-                c_length = os.path.getsize(file)
+                fs = os.path.getsize(file)
                 try:
                     c_type, _ = mimetypes.guess_type(file)
                     if c_type not in ALLOWED_CONTENT_TYPES:
@@ -104,46 +105,40 @@ class RequestHandler():
                     code = NOT_FOUND
                     logging.exception(f'Exception {e}')
         self.c_type = c_type
-        self.c_length = c_length
+        self.c_length = str(fs)
         self.resp_body = resp_body
         self.method = method
         return code
 
     def open_file(self, file):
-        # try:
-        #     with open(file, 'r') as f:
-        #         resp_body = f.read()
-        #         code = OK
-        # except Exception as e:
-        #     logging.exception(f'Exception {e}')
-        #     try:
-        #         with open(file, 'rb') as f:
-        #             resp_body = f.read()
-        #             code = OK
-        #     except Exception as e:
-        #         code = NOT_FOUND
-        #         resp_body = None
-        #         logging.exception(f'Exception {e}')
-        # return code, resp_body
-        try:
-            with open(file, 'r') as f:
-                resp_body = f.read()
-                code = OK
-        except Exception as e:
-            code = NOT_FOUND
+        if self.method=='HEAD':
             resp_body = None
-            logging.exception(f'Exception {e}')
+            code = OK
+        else:
+            try:
+                with open(file, 'r') as f:
+                    resp_body = f.read()
+                    code = OK
+            except Exception as e:
+                try:
+                    with open(file, 'rb') as f:
+                        resp_body = f.read()
+                        code = OK
+                except Exception as e:
+                    code = NOT_FOUND
+                    resp_body = None
+                    logging.exception(f'Exception {e}')
         return code, resp_body
 
     def get_response_headers(self, code, c_type, c_length):
         headers = {}
+        headers['Date'] = self.get_date_time()
+        headers['Server'] = self.server_name
         if code != OK:
             headers['Content-Type'] = 'text/html; charset=utf-8'
             headers['Content-Length'] = 0
             headers['Connection'] = 'close'
         else:
-            headers['Date'] = self.get_date_time()
-            headers['Server'] = self.server_name
             headers['Content-Type'] = c_type
             headers['Content-Length'] = c_length
             headers['Connection'] = 'close'
@@ -197,7 +192,7 @@ class TCPServer:
     def close(self):
         return self._socket.close()
 
-    def recvall(self, client_socket):
+    def recieve(self, client_socket):
         request_data = b''
         while True:
             curr_data = client_socket.recv(self.chunk_size)
@@ -213,14 +208,16 @@ class TCPServer:
                             level=logging.INFO)
         while True:
             client_socket, client_address = self.connect()
-            client_socket.settimeout(self.client_timeout)
+            # client_socket.settimeout(self.client_timeout)
             with client_socket:
                 # recv_data = client_socket.recv(1024)
-                recv_data = self.recvall(client_socket)
-                logging.info(f'Received raw_request: {recv_data}')
-                recv_data = recv_data.decode('utf-8')
+                raw_data = self.recieve(client_socket)
+                logging.info(f'Received raw_request: {raw_data}')
+                recv_data = raw_data.decode('utf-8')
                 logging.info(f'Received request: {recv_data}')
                 req_handler = self.RequestHandlerClass(recv_data, self.root_path, self.server_name)
                 response = req_handler.create_response()
-                logging.info(f'Received response: {response}')
+                logging.info(f'Send response: {response}')
+                raw_response = response.encode('utf-8')
+                logging.info(f'Send  encode response: {raw_response}')
                 client_socket.sendall(response.encode('utf-8'))
