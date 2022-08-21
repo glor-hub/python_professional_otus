@@ -65,11 +65,8 @@ class RequestHandler():
 
     def get_path(self, url_raw):
         url = unquote(url_raw)
-        print(f'unquote_path:{url}')
         parsed_url = urlparse(url).path
-        print(f'urlparse_path:{parsed_url}')
         path = os.path.join(self.root_path, os.path.normpath(parsed_url))
-        print(f'n_path:{path}')
         if os.path.isdir(path):
             file = os.path.join(path, 'index.html')
             if not os.path.isfile(file):
@@ -208,7 +205,6 @@ class TCPServer:
             client_socket, client_address = self.connect()
             client_socket.settimeout(self.client_timeout)
             with client_socket:
-                # recv_data = client_socket.recv(1024)
                 raw_data = self.recieve(client_socket)
                 logging.info(f'Received raw_request: {raw_data}')
                 recv_data = raw_data.decode('utf-8')
@@ -216,6 +212,4 @@ class TCPServer:
                 req_handler = self.RequestHandlerClass(recv_data, self.root_path, self.server_name)
                 response = req_handler.create_response()
                 logging.info(f'Send response: {response}')
-                # raw_response = response.encode('utf-8')
-                # logging.info(f'Send  encode response: {raw_response}')
                 client_socket.sendall(response)
