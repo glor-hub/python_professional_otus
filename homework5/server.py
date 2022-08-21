@@ -111,23 +111,18 @@ class RequestHandler():
         return code
 
     def open_file(self, file):
-        if self.method=='HEAD':
+        if self.method == 'HEAD':
             resp_body = None
             code = OK
         else:
             try:
-                with open(file, 'r') as f:
+                with open(file, 'rb') as f:
                     resp_body = f.read()
                     code = OK
             except Exception as e:
-                try:
-                    with open(file, 'rb') as f:
-                        resp_body = f.read()
-                        code = OK
-                except Exception as e:
-                    code = NOT_FOUND
-                    resp_body = None
-                    logging.exception(f'Exception {e}')
+                code = NOT_FOUND
+                resp_body = None
+                logging.exception(f'Exception {e}')
         return code, resp_body
 
     def get_response_headers(self, code, c_type, c_length):
@@ -150,9 +145,9 @@ class RequestHandler():
         start_line = ''.join('%s %s %s' % (PROTOCOL_TYPE, code, RESPONSE_STATUS_CODES[code]))
         headers = self.get_response_headers(code, self.c_type, self.c_length)
         if code != OK or self.method == 'HEAD':
-            response = ''.join('%s\r\n%s\r\n\r\n' % (start_line, headers))
+            response = (''.join('%s\r\n%s\r\n\r\n' % (start_line, headers))).encode('utf-8')
         else:
-            response = ''.join('%s\r\n%s\r\n\r\n%s' % (start_line, headers, self.resp_body))
+            response = (''.join('%s\r\n%s\r\n\r\n' % (start_line, headers))).encode('utf-8') + self.resp_body
         return response
 
     @staticmethod
@@ -194,11 +189,14 @@ class TCPServer:
 
     def recieve(self, client_socket):
         request_data = b''
-        while True:
-            curr_data = client_socket.recv(self.chunk_size)
-            request_data += curr_data
-            if request_data.find(HTTP_HEAD_TERMINATOR) >= 0 or not curr_data:
-                break
+        try:
+            while True:
+                curr_data = client_socket.recv(self.chunk_size)
+                request_data += curr_data
+                if request_data.find(HTTP_HEAD_TERMINATOR) >= 0 or not curr_data:
+                    break
+        except ConnectionError:
+            pass
         return request_data
 
     def run_server(self):
@@ -208,7 +206,7 @@ class TCPServer:
                             level=logging.INFO)
         while True:
             client_socket, client_address = self.connect()
-            # client_socket.settimeout(self.client_timeout)
+            client_socket.settimeout(self.client_timeout)
             with client_socket:
                 # recv_data = client_socket.recv(1024)
                 raw_data = self.recieve(client_socket)
@@ -218,6 +216,6 @@ class TCPServer:
                 req_handler = self.RequestHandlerClass(recv_data, self.root_path, self.server_name)
                 response = req_handler.create_response()
                 logging.info(f'Send response: {response}')
-                raw_response = response.encode('utf-8')
-                logging.info(f'Send  encode response: {raw_response}')
-                client_socket.sendall(response.encode('utf-8'))
+                # raw_response = response.encode('utf-8')
+                # logging.info(f'Send  encode response: {raw_response}')
+                client_socket.sendall(response)
