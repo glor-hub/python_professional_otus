@@ -1,8 +1,6 @@
 import numpy as np
 from scipy import sparse
 
-from dmia.gradient_check import eval_numerical_gradient
-
 
 class LogisticRegression:
     def __init__(self):
@@ -64,7 +62,7 @@ class LogisticRegression:
             # TODO:                                                                 #
             # Update the weights using the gradient and the learning rate.          #
             #########################################################################
-            self.w = self.w - learning_rate * gradW
+            self.w -= learning_rate * gradW
             #########################################################################
             #                       END OF YOUR CODE                                #
             #########################################################################
@@ -94,9 +92,9 @@ class LogisticRegression:
         # Implement this method. Store the probabilities of classes in y_proba.   #
         # Hint: It might be helpful to use np.vstack and np.sum                   #
         p = 1.0 / (1.0 + np.exp(-X.dot(self.w.T)))
-        prob_class_0 = np.where(p > 0.5, 1, 0)
-        prob_class_1 = 1 - prob_class_0
-        y_proba = np.vstack((prob_class_0, prob_class_1))
+        probab_class_0 = np.where(p > 0.5, 1, 0)
+        probab_class_1 = 1 - probab_class_0
+        y_proba = np.vstack((probab_class_0, probab_class_1)).T
         ###########################################################################
 
         ###########################################################################
@@ -141,11 +139,26 @@ class LogisticRegression:
         dw = np.zeros_like(self.w)  # initialize the gradient as zero
         loss = 0
         # Compute loss and gradient. Your code should not contain python loops.
-        p = 1.0 / (1.0 + np.exp(-X_batch.dot(self.w.T)))
-        loss = -np.sum(y_batch*np.log(p) + (1.0 - y_batch)*np.log(1.0 - p))
-        print(type(loss))
+        p = 1.0 / (1.0 + np.exp(-X_batch.dot(self.w)))
+        # print(f'p.shape {p.shape}')
+        # print(f'p {p}')
+        # print(f'type(self.w) {type(self.w)}')
+        # print(f'self.w.shape {self.w.shape}')
+        # print(f'self.w {self.w}')
+        # print(f'y_batch {y_batch}')
+        # print(f'y_batch.shape {y_batch.shape}')
+        # print(f'type(y_batch) {type(y_batch)}')
+        # print(f'type(X_batch) {type(X_batch)}')
+        # print(f'X_batch.shape {X_batch.shape}')
+        # print(f'X_batch {X_batch}')
+        # print(f'type(self.w) {type(self.w)}')
+        # print(f'self.w.shape {self.w.shape}')
         # dw = eval_numerical_gradient(loss, self.w)
+        loss = -np.dot(y_batch, np.log(p)) - np.dot((1.0 - y_batch), np.log(1.0 - p))
         dw = X_batch.T.dot(p - y_batch)
+        # print(f'type(dw) {type(dw)}')
+        # print(f'dw.shape {dw.shape}')
+        # print(f'dw {dw}')
         # Right now the loss is a sum over all training examples, but we want it
         # to be an average instead so we divide by num_train.
         num_train = X_batch.shape[0]
@@ -161,3 +174,8 @@ class LogisticRegression:
     @staticmethod
     def append_biases(X):
         return sparse.hstack((X, np.ones(X.shape[0])[:, np.newaxis])).tocsr()
+
+    @staticmethod
+    def sigmoid(Z):
+        A = 1 / (1 + np.exp(-Z))
+        return A
