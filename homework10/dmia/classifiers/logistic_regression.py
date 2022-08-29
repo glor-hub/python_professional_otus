@@ -72,6 +72,10 @@ class LogisticRegression:
 
         return self
 
+    @staticmethod
+    def sigmoid(Z):
+        return 1.0 / (1.0 + np.exp(-Z))
+
     def predict_proba(self, X, append_bias=False):
         """
         Use the trained weights of this linear classifier to predict probabilities for
@@ -91,10 +95,8 @@ class LogisticRegression:
         # TODO:                                                                   #
         # Implement this method. Store the probabilities of classes in y_proba.   #
         # Hint: It might be helpful to use np.vstack and np.sum                   #
-        p = 1.0 / (1.0 + np.exp(-X.dot(self.w.T)))
-        probab_class_0 = np.where(p > 0.5, 1, 0)
-        probab_class_1 = 1 - probab_class_0
-        y_proba = np.vstack((probab_class_0, probab_class_1)).T
+        p = LogisticRegression.sigmoid(X.dot(self.w.T))
+        y_proba = np.vstack((1 - p, p)).T
         ###########################################################################
 
         ###########################################################################
@@ -120,8 +122,9 @@ class LogisticRegression:
         # Implement this method. Store the predicted labels in y_pred.            #
         ###########################################################################
         y_proba = self.predict_proba(X, append_bias=True)
-        y_pred = y_proba[0]
-        ###########################################################################
+        y_pred = np.where(y_proba[:, 1] > 0.5, 1, 0)
+
+        ##########################################################################
         #                           END OF YOUR CODE                              #
         ###########################################################################
         return y_pred
@@ -139,26 +142,9 @@ class LogisticRegression:
         dw = np.zeros_like(self.w)  # initialize the gradient as zero
         loss = 0
         # Compute loss and gradient. Your code should not contain python loops.
-        p = 1.0 / (1.0 + np.exp(-X_batch.dot(self.w)))
-        # print(f'p.shape {p.shape}')
-        # print(f'p {p}')
-        # print(f'type(self.w) {type(self.w)}')
-        # print(f'self.w.shape {self.w.shape}')
-        # print(f'self.w {self.w}')
-        # print(f'y_batch {y_batch}')
-        # print(f'y_batch.shape {y_batch.shape}')
-        # print(f'type(y_batch) {type(y_batch)}')
-        # print(f'type(X_batch) {type(X_batch)}')
-        # print(f'X_batch.shape {X_batch.shape}')
-        # print(f'X_batch {X_batch}')
-        # print(f'type(self.w) {type(self.w)}')
-        # print(f'self.w.shape {self.w.shape}')
-        # dw = eval_numerical_gradient(loss, self.w)
-        loss = -np.dot(y_batch, np.log(p)) - np.dot((1.0 - y_batch), np.log(1.0 - p))
+        p = LogisticRegression.sigmoid(X_batch.dot(self.w))
+        loss = np.sum(-np.dot(y_batch, np.log(p)) - np.dot((1.0 - y_batch), np.log(1.0 - p)))
         dw = X_batch.T.dot(p - y_batch)
-        # print(f'type(dw) {type(dw)}')
-        # print(f'dw.shape {dw.shape}')
-        # print(f'dw {dw}')
         # Right now the loss is a sum over all training examples, but we want it
         # to be an average instead so we divide by num_train.
         num_train = X_batch.shape[0]
@@ -174,8 +160,3 @@ class LogisticRegression:
     @staticmethod
     def append_biases(X):
         return sparse.hstack((X, np.ones(X.shape[0])[:, np.newaxis])).tocsr()
-
-    @staticmethod
-    def sigmoid(Z):
-        A = 1 / (1 + np.exp(-Z))
-        return A
