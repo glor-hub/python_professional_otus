@@ -91,40 +91,42 @@ class RequestHandler():
         fs = 0
         file = self.req_parser.get_path(url)
         if method not in ALLOWED_METHODS:
-            code = NOT_ALLOWED
-        else:
-            if not file:
-                code = NOT_FOUND
-            else:
-                fs = os.path.getsize(file)
-                try:
-                    c_type, _ = mimetypes.guess_type(file)
-                    if c_type not in ALLOWED_CONTENT_TYPES:
-                        code = FORBIDDEN
-                    else:
-                        code, resp_body = self.open_file(file)
-                except Exception as e:
-                    code = NOT_FOUND
-                    logging.exception(f'Exception {e}')
+            return NOT_ALLOWED
+        if not file:
+            return NOT_FOUND
+        fs = os.path.getsize(file)
+        code, c_type = self.get_mimetype(file)
+        code, resp_body = self.open_file(file)
         self.c_type = c_type
         self.c_length = str(fs)
         self.resp_body = resp_body
         self.method = method
         return code
 
+    def get_mimetype(self, file):
+        try:
+            c_type, _ = mimetypes.guess_type(file)
+            if c_type not in ALLOWED_CONTENT_TYPES:
+                return FORBIDDEN, None
+            code = OK
+            c_type = c_type
+        except Exception as e:
+            code = NOT_FOUND
+            c_type = None
+            logging.exception(f'Exception {e}')
+        return code, c_type
+
     def open_file(self, file):
         if self.method == 'HEAD':
+            return OK, None
+        try:
+            with open(file, 'rb') as f:
+                resp_body = f.read()
+                code = OK
+        except Exception as e:
+            code = NOT_FOUND
             resp_body = None
-            code = OK
-        else:
-            try:
-                with open(file, 'rb') as f:
-                    resp_body = f.read()
-                    code = OK
-            except Exception as e:
-                code = NOT_FOUND
-                resp_body = None
-                logging.exception(f'Exception {e}')
+            logging.exception(f'Exception {e}')
         return code, resp_body
 
     def get_response_headers(self, code, c_type, c_length):
