@@ -109,7 +109,6 @@ class RequestHandler():
             if c_type not in ALLOWED_CONTENT_TYPES:
                 return FORBIDDEN, None
             code = OK
-            c_type = c_type
         except Exception as e:
             code = NOT_FOUND
             c_type = None
