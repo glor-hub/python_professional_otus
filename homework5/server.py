@@ -194,7 +194,7 @@ class TCPServer:
                 if request_data.find(HTTP_HEAD_TERMINATOR) >= 0 or not curr_data:
                     break
         except ConnectionError:
-            logging.info(f'Connection lost')
+            logging.info('Connection error during reading response')
             request_data = None
         return request_data
 
