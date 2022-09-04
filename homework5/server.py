@@ -173,6 +173,7 @@ class TCPServer:
                 self._socket.close()
             self._socket = socket.socket(self.addr_family, self.socket_type)
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
             self._socket.bind(self.server_address)
             self._socket.listen(self.request_queue_size)
 
@@ -193,7 +194,8 @@ class TCPServer:
                 if request_data.find(HTTP_HEAD_TERMINATOR) >= 0 or not curr_data:
                     break
         except ConnectionError:
-            pass
+            logging.info(f'Connection lost')
+            request_data = None
         return request_data
 
     def run_server(self):
@@ -206,10 +208,11 @@ class TCPServer:
             client_socket.settimeout(self.client_timeout)
             with client_socket:
                 raw_data = self.recieve(client_socket)
-                logging.info(f'Received raw_request: {raw_data}')
-                recv_data = raw_data.decode('utf-8')
-                logging.info(f'Received request: {recv_data}')
-                req_handler = self.RequestHandlerClass(recv_data, self.root_path, self.server_name)
-                response = req_handler.create_response()
-                logging.info(f'Send response: {response}')
-                client_socket.sendall(response)
+                if raw_data:
+                    logging.info(f'Received raw_request: {raw_data}')
+                    recv_data = raw_data.decode('utf-8')
+                    logging.info(f'Received request: {recv_data}')
+                    req_handler = self.RequestHandlerClass(recv_data, self.root_path, self.server_name)
+                    response = req_handler.create_response()
+                    logging.info(f'Send response: {response}')
+                    client_socket.sendall(response)
