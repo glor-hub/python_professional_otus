@@ -43,15 +43,10 @@ RESPONSE_STATUS_CODES = {
 }
 
 
-class RequestHandler():
-    def __init__(self, request, root_path, server_name):
+class RequestParser():
+    def __init__(self, request, root_path):
         self.request = request
         self.root_path = root_path
-        self.server_name = server_name
-        self.method = None
-        self.c_type = None
-        self.resp_body = None
-        self.c_length = 0
 
     def parse_request(self):
         req_list = self.request.split('\r\n')
@@ -77,14 +72,24 @@ class RequestHandler():
             file = None
         return file
 
+
+class RequestHandler():
+    def __init__(self, req_parser, server_name):
+        self.server_name = server_name
+        self.method = None
+        self.c_type = None
+        self.req_parser = req_parser
+        self.resp_body = None
+        self.c_length = 0
+
     def request_handler(self):
         c_type = None
         resp_body = None
-        if not self.parse_request():
+        if not self.req_parser.parse_request():
             return BAD_REQUEST
-        method, url, protocol = self.parse_request()
+        method, url, protocol = self.req_parser.parse_request()
         fs = 0
-        file = self.get_path(url)
+        file = self.req_parser.get_path(url)
         if method not in ALLOWED_METHODS:
             code = NOT_ALLOWED
         else:
@@ -212,7 +217,8 @@ class TCPServer:
                     logging.info(f'Received raw_request: {raw_data}')
                     recv_data = raw_data.decode('utf-8')
                     logging.info(f'Received request: {recv_data}')
-                    req_handler = self.RequestHandlerClass(recv_data, self.root_path, self.server_name)
+                    req_parser = RequestParser(recv_data, self.root_path)
+                    req_handler = self.RequestHandlerClass(req_parser, self.server_name)
                     response = req_handler.create_response()
                     logging.info(f'Send response: {response}')
                     client_socket.sendall(response)
