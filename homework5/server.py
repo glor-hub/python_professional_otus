@@ -96,7 +96,7 @@ class RequestHandler():
             return NOT_FOUND
         fs = os.path.getsize(file)
         code, c_type = self.get_mimetype(file)
-        if(code==OK):
+        if code == OK:
             code, resp_body = self.open_file(file)
         self.c_type = c_type
         self.c_length = str(fs)
