@@ -46,7 +46,7 @@ def insert_appsinstalled(memc_addr, appsinstalled, dry_run=False):
 
 
 def parse_appsinstalled(line):
-    line_parts = line.strip().split("\t")
+    line_parts = line.decode('utf-8').strip().split('\t')
     if len(line_parts) < 5:
         return
     dev_type, dev_id, lat, lon, raw_apps = line_parts
@@ -71,6 +71,7 @@ def main(options):
         "adid": options.adid,
         "dvid": options.dvid,
     }
+    print(glob.iglob(options.pattern))
     for fn in glob.iglob(options.pattern):
         processed = errors = 0
         logging.info('Processing %s' % fn)
@@ -128,7 +129,7 @@ if __name__ == '__main__':
     op.add_option("-t", "--test", action="store_true", default=False)
     op.add_option("-l", "--log", action="store", default=None)
     op.add_option("--dry", action="store_true", default=False)
-    op.add_option("--pattern", action="store", default="/data/appsinstalled/*.tsv.gz")
+    op.add_option("--pattern", action="store", default="data/*.tsv.gz")
     op.add_option("--idfa", action="store", default="127.0.0.1:33013")
     op.add_option("--gaid", action="store", default="127.0.0.1:33014")
     op.add_option("--adid", action="store", default="127.0.0.1:33015")
