@@ -71,7 +71,6 @@ def main(options):
         "adid": options.adid,
         "dvid": options.dvid,
     }
-    print(glob.iglob(options.pattern))
     for fn in glob.iglob(options.pattern):
         processed = errors = 0
         logging.info('Processing %s' % fn)
