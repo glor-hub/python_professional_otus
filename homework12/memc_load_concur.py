@@ -82,7 +82,7 @@ def run_process(fn, dev_memc, opt_dry):
         memc_addr = dev_memc.get(appsinstalled.dev_type)
         if not memc_addr:
             errors += 1
-            logging.error("Unknow device type: %s" % appsinstalled.dev_type)
+            logging.error("Unknown device type: %s" % appsinstalled.dev_type)
             continue
         ok = insert_appsinstalled(memc_addr, appsinstalled, opt_dry)
         if ok:
@@ -92,6 +92,7 @@ def run_process(fn, dev_memc, opt_dry):
     if not processed:
         fd.close()
         dot_rename(fn)
+        return fn
     err_rate = float(errors) / processed
     if err_rate < NORMAL_ERR_RATE:
         logging.info("Acceptable error rate (%s). Successfull load" % err_rate)
@@ -99,6 +100,7 @@ def run_process(fn, dev_memc, opt_dry):
         logging.error("High error rate (%s > %s). Failed load" % (err_rate, NORMAL_ERR_RATE))
     fd.close()
     dot_rename(fn)
+    return fn
 
 
 def main(options):
@@ -108,12 +110,13 @@ def main(options):
         "adid": options.adid,
         "dvid": options.dvid,
     }
-    data_path = glob.iglob(options.pattern)
+    data_path = sorted(list(glob.iglob(options.pattern)))
     with Pool(processes=WORKER_COUNT) as pool:
         print('WORKER_COUNT', WORKER_COUNT)
         print('worker')
-        pool.imap(partial(run_process, device_memc=device_memc, opt_dry=options.dry), data_path)
-
+        ps=pool.imap(partial(run_process, dev_memc=device_memc, opt_dry=options.dry), data_path)
+        for p in ps:
+            logging.info('Process %s done' % p)
 
 def prototest():
     sample = "idfa\t1rfw452y52g2gq4g\t55.55\t42.42\t1423,43,567,3,7,23\ngaid\t7rfw452y52g2gq4g\t55.55\t42.42\t7423,424"
