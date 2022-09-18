@@ -25,9 +25,9 @@ MEMC_SOCKET_TIMEOUT = 0.1
 MEMC_CONN_DELAY = 0.1
 MEMC_CONN_MAX_RETRIES = 5
 MEMC_QUEUE_SIZE = 0
-MEMC_QUEUE_TIMEOUT = 0.1
+MEMC_QUEUE_TIMEOUT = 1
 RESULT_QUEUE_SIZE = 0
-RESULT_QUEUE_TIMEOUT = 0.1
+RESULT_QUEUE_TIMEOUT = None
 NORMAL_ERR_RATE = 0.01
 AppsInstalled = collections.namedtuple("AppsInstalled", ["dev_type", "dev_id", "lat", "lon", "apps"])
 
@@ -69,13 +69,17 @@ class Insert_App(threading.Thread):
 
     def run(self):
         processed = errors = 0
-        memc_addr, appsinstalled, opt_dry = self._memc_queue.get()
-        ok = self.insert_appsinstalled(memc_addr, appsinstalled, opt_dry)
-        if ok:
-            processed += 1
-        else:
-            errors += 1
-        self._res_queue.put((processed, errors))
+        while True:
+            try:
+                memc_addr, appsinstalled, opt_dry = self._memc_queue.get(timeout=MEMC_QUEUE_TIMEOUT)
+                ok = self.insert_appsinstalled(memc_addr, appsinstalled, opt_dry)
+                if ok:
+                    processed += 1
+                else:
+                    errors += 1
+            except queue.Empty:
+                self._res_queue.put((processed, errors),timeout=RESULT_QUEUE_TIMEOUT)
+                return
 
     @staticmethod
     def insert_appsinstalled(memc_addr, appsinstalled, dry_run=False):
@@ -171,14 +175,14 @@ def run_process(fn, dev_memc, opt_dry):
     logging.info("Process %d running." % (pid))
     memc_queue = queue.Queue(MEMC_QUEUE_SIZE)
     res_queue = queue.Queue(RESULT_QUEUE_SIZE)
-    pool = run_thread_pool(memc_queue, res_queue, THREADS_IN_WORKER_COUNT)
     thread = Parse_App(memc_queue, res_queue, fn, dev_memc, opt_dry)
     thread.start()
+    pool = run_thread_pool(memc_queue, res_queue, THREADS_IN_WORKER_COUNT)
     thread.join()
     join_thread_pool(pool)
     processed = errors = 0
     while not res_queue.empty():
-        proc, err = res_queue.get()
+        proc, err = res_queue.get(timeout=RESULT_QUEUE_TIMEOUT)
         processed += proc
         errors += err
     if not processed:
@@ -189,7 +193,7 @@ def run_process(fn, dev_memc, opt_dry):
         logging.info("Process %d: Acceptable error rate (%s). Successfull load" % (pid, err_rate))
     else:
         logging.error("Process %d: High error rate (%s > %s). Failed load" % (pid, err_rate, NORMAL_ERR_RATE))
-    # dot_rename(fn)
+    dot_rename(fn)
     return fn
 
 
