@@ -4,6 +4,7 @@ from functools import partial
 import os
 import gzip
 import sys
+import time
 import glob
 import logging
 import collections
@@ -19,57 +20,81 @@ import queue
 import threading
 
 WORKERS_COUNT = os.cpu_count()
-THREADS_IN_WORKER = 5
+THREADS_IN_WORKER_COUNT = 5
+MEMC_SOCKET_TIMEOUT = 0.1
+MEMC_CONN_DELAY = 0.1
+MEMC_CONN_MAX_RETRIES = 5
 MEMC_QUEUE_SIZE = 0
+MEMC_QUEUE_TIMEOUT = 0.1
 RESULT_QUEUE_SIZE = 0
+RESULT_QUEUE_TIMEOUT = 0.1
 NORMAL_ERR_RATE = 0.01
 AppsInstalled = collections.namedtuple("AppsInstalled", ["dev_type", "dev_id", "lat", "lon", "apps"])
 
 
-def dot_rename(path):
-    head, fn = os.path.split(path)
-    # atomic in most cases
-    os.rename(path, os.path.join(head, "." + fn))
+class MemcacheStore():
+    def __init__(self, addr, max_retries, delay):
+        self.conn = memcache.Client(addr, socket_timeout=MEMC_SOCKET_TIMEOUT)
+        self.max_retries = max_retries
+        self.delay = delay
+
+    def get(self, key):
+        num_retries = 0
+        while num_retries < self.max_retries:
+            try:
+                return self.get(key)
+            except ConnectionError:
+                self.conn()
+                num_retries += 1
+                time.sleep(self.delay)
+        return None
+
+    def set(self, key, value):
+        num_retries = 0
+        while num_retries < self.max_retries:
+            try:
+                return self.conn.set(key, value)
+            except ConnectionError:
+                self.conn()
+                num_retries += 1
+                time.sleep(self.delay)
+        return None
 
 
-def insert_appsinstalled(memc_addr, appsinstalled, dry_run=False):
-    ua = appsinstalled_pb2.UserApps()
-    ua.lat = appsinstalled.lat
-    ua.lon = appsinstalled.lon
-    key = "%s:%s" % (appsinstalled.dev_type, appsinstalled.dev_id)
-    ua.apps.extend(appsinstalled.apps)
-    packed = ua.SerializeToString()
-    # @TODO persistent connection
-    # @TODO retry and timeouts!
-    try:
-        if dry_run:
-            logging.debug("%s - %s -> %s" % (memc_addr, key, str(ua).replace("\n", " ")))
+class Insert_App(threading.Thread):
+    def __init__(self, memc_queue, res_queue):
+        threading.Thread.__init__(self)
+        self._memc_queue = memc_queue
+        self._res_queue = res_queue
+
+    def run(self):
+        processed = errors = 0
+        memc_addr, appsinstalled, opt_dry = self._memc_queue.get()
+        ok = self.insert_appsinstalled(memc_addr, appsinstalled, opt_dry)
+        if ok:
+            processed += 1
         else:
-            memc = memcache.Client([memc_addr])
-            memc.set(key, packed)
-    except Exception as e:
-        logging.exception("Cannot write to memc %s: %s" % (memc_addr, e))
-        return False
-    return True
+            errors += 1
+        self._res_queue.put((processed, errors))
 
-
-def parse_appsinstalled(line):
-    line_parts = line.decode('utf-8').strip().split('\t')
-    if len(line_parts) < 5:
-        return
-    dev_type, dev_id, lat, lon, raw_apps = line_parts
-    if not dev_type or not dev_id:
-        return
-    try:
-        apps = [int(a.strip()) for a in raw_apps.split(",")]
-    except ValueError:
-        apps = [int(a.strip()) for a in raw_apps.split(",") if a.isidigit()]
-        logging.info("Not all user apps are digits: `%s`" % line)
-    try:
-        lat, lon = float(lat), float(lon)
-    except ValueError:
-        logging.info("Invalid geo coords: `%s`" % line)
-    return AppsInstalled(dev_type, dev_id, lat, lon, apps)
+    @staticmethod
+    def insert_appsinstalled(memc_addr, appsinstalled, dry_run=False):
+        ua = appsinstalled_pb2.UserApps()
+        ua.lat = appsinstalled.lat
+        ua.lon = appsinstalled.lon
+        key = "%s:%s" % (appsinstalled.dev_type, appsinstalled.dev_id)
+        ua.apps.extend(appsinstalled.apps)
+        packed = ua.SerializeToString()
+        try:
+            if dry_run:
+                logging.debug("%s - %s -> %s" % (memc_addr, key, str(ua).replace("\n", " ")))
+            else:
+                memc = MemcacheStore([memc_addr], MEMC_CONN_MAX_RETRIES, MEMC_CONN_DELAY)
+                memc.set(key, packed)
+        except Exception as e:
+            logging.exception("Cannot write to memc %s: %s" % (memc_addr, e))
+            return False
+        return True
 
 
 class Parse_App(threading.Thread):
@@ -89,7 +114,7 @@ class Parse_App(threading.Thread):
                 line = line.strip()
                 if not line:
                     continue
-                appsinstalled = parse_appsinstalled(line)
+                appsinstalled = self.parse_appsinstalled(line)
                 if not appsinstalled:
                     errors += 1
                     continue
@@ -101,22 +126,30 @@ class Parse_App(threading.Thread):
                 self._memc_queue.put((memc_addr, appsinstalled, self.dry))
         self._res_queue.put((processed, errors))
 
+    @staticmethod
+    def parse_appsinstalled(line):
+        line_parts = line.decode('utf-8').strip().split('\t')
+        if len(line_parts) < 5:
+            return
+        dev_type, dev_id, lat, lon, raw_apps = line_parts
+        if not dev_type or not dev_id:
+            return
+        try:
+            apps = [int(a.strip()) for a in raw_apps.split(",")]
+        except ValueError:
+            apps = [int(a.strip()) for a in raw_apps.split(",") if a.isidigit()]
+            logging.info("Not all user apps are digits: `%s`" % line)
+        try:
+            lat, lon = float(lat), float(lon)
+        except ValueError:
+            logging.info("Invalid geo coords: `%s`" % line)
+        return AppsInstalled(dev_type, dev_id, lat, lon, apps)
 
-class Insert_App(threading.Thread):
-    def __init__(self, memc_queue, res_queue):
-        threading.Thread.__init__(self)
-        self._memc_queue = memc_queue
-        self._res_queue = res_queue
 
-    def run(self):
-        processed = errors = 0
-        memc_addr, appsinstalled, opt_dry = self._memc_queue.get()
-        ok = insert_appsinstalled(memc_addr, appsinstalled, opt_dry)
-        if ok:
-            processed += 1
-        else:
-            errors += 1
-        self._res_queue.put((processed, errors))
+def dot_rename(path):
+    head, fn = os.path.split(path)
+    # atomic in most cases
+    os.rename(path, os.path.join(head, "." + fn))
 
 
 def run_thread_pool(memc_queue, res_queue, size):
@@ -138,7 +171,7 @@ def run_process(fn, dev_memc, opt_dry):
     logging.info("Process %d running." % (pid))
     memc_queue = queue.Queue(MEMC_QUEUE_SIZE)
     res_queue = queue.Queue(RESULT_QUEUE_SIZE)
-    pool = run_thread_pool(memc_queue, res_queue, THREADS_IN_WORKER)
+    pool = run_thread_pool(memc_queue, res_queue, THREADS_IN_WORKER_COUNT)
     thread = Parse_App(memc_queue, res_queue, fn, dev_memc, opt_dry)
     thread.start()
     thread.join()
