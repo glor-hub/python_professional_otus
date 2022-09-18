@@ -15,8 +15,13 @@ import appsinstalled_pb2
 # pip install python-memcached
 import memcache
 from multiprocessing import Pool
+import queue
+import threading
 
-WORKER_COUNT = os.cpu_count()
+WORKERS_COUNT = os.cpu_count()
+THREADS_IN_WORKER = 5
+MEMC_QUEUE_SIZE = 0
+RESULT_QUEUE_SIZE = 0
 NORMAL_ERR_RATE = 0.01
 AppsInstalled = collections.namedtuple("AppsInstalled", ["dev_type", "dev_id", "lat", "lon", "apps"])
 
@@ -67,39 +72,91 @@ def parse_appsinstalled(line):
     return AppsInstalled(dev_type, dev_id, lat, lon, apps)
 
 
-def run_process(fn, dev_memc, opt_dry):
-    processed = errors = 0
-    logging.info('Processing %s' % fn)
-    fd = gzip.open(fn)
-    for line in fd:
-        line = line.strip()
-        if not line:
-            continue
-        appsinstalled = parse_appsinstalled(line)
-        if not appsinstalled:
-            errors += 1
-            continue
-        memc_addr = dev_memc.get(appsinstalled.dev_type)
-        if not memc_addr:
-            errors += 1
-            logging.error("Unknown device type: %s" % appsinstalled.dev_type)
-            continue
+class Parse_App(threading.Thread):
+    def __init__(self, memc_queue, res_queue, path, dev_memc, opt_dry):
+        threading.Thread.__init__(self)
+        self._memc_queue = memc_queue
+        self._res_queue = res_queue
+        self.path = path
+        self.dev_memc = dev_memc
+        self.dry = opt_dry
+
+    def run(self):
+        processed = errors = 0
+        logging.info('Processing %s' % self.path)
+        with gzip.open(self.path) as fd:
+            for line in fd:
+                line = line.strip()
+                if not line:
+                    continue
+                appsinstalled = parse_appsinstalled(line)
+                if not appsinstalled:
+                    errors += 1
+                    continue
+                memc_addr = self.dev_memc.get(appsinstalled.dev_type)
+                if not memc_addr:
+                    errors += 1
+                    logging.error("Unknown device type: %s" % appsinstalled.dev_type)
+                    continue
+                self._memc_queue.put((memc_addr, appsinstalled, self.dry))
+        self._res_queue.put((processed, errors))
+
+
+class Insert_App(threading.Thread):
+    def __init__(self, memc_queue, res_queue):
+        threading.Thread.__init__(self)
+        self._memc_queue = memc_queue
+        self._res_queue = res_queue
+
+    def run(self):
+        processed = errors = 0
+        memc_addr, appsinstalled, opt_dry = self._memc_queue.get()
         ok = insert_appsinstalled(memc_addr, appsinstalled, opt_dry)
         if ok:
             processed += 1
         else:
             errors += 1
+        self._res_queue.put((processed, errors))
+
+
+def run_thread_pool(memc_queue, res_queue, size):
+    threads = []
+    for _ in range(size):
+        thread = Insert_App(memc_queue, res_queue)
+        thread.start()
+        threads.append(thread)
+    return threads
+
+
+def join_thread_pool(pool):
+    for thread in pool:
+        thread.join()
+
+
+def run_process(fn, dev_memc, opt_dry):
+    pid = os.getpid()
+    logging.info("Process %d running." % (pid))
+    memc_queue = queue.Queue(MEMC_QUEUE_SIZE)
+    res_queue = queue.Queue(RESULT_QUEUE_SIZE)
+    pool = run_thread_pool(memc_queue, res_queue, THREADS_IN_WORKER)
+    thread = Parse_App(memc_queue, res_queue, fn, dev_memc, opt_dry)
+    thread.start()
+    thread.join()
+    join_thread_pool(pool)
+    processed = errors = 0
+    while not res_queue.empty():
+        proc, err = res_queue.get()
+        processed += proc
+        errors += err
     if not processed:
-        fd.close()
         dot_rename(fn)
         return fn
     err_rate = float(errors) / processed
     if err_rate < NORMAL_ERR_RATE:
-        logging.info("Acceptable error rate (%s). Successfull load" % err_rate)
+        logging.info("Process %d: Acceptable error rate (%s). Successfull load" % (pid, err_rate))
     else:
-        logging.error("High error rate (%s > %s). Failed load" % (err_rate, NORMAL_ERR_RATE))
-    fd.close()
-    dot_rename(fn)
+        logging.error("Process %d: High error rate (%s > %s). Failed load" % (pid, err_rate, NORMAL_ERR_RATE))
+    # dot_rename(fn)
     return fn
 
 
@@ -110,13 +167,12 @@ def main(options):
         "adid": options.adid,
         "dvid": options.dvid,
     }
-    data_path = sorted(list(glob.iglob(options.pattern)))
-    with Pool(processes=WORKER_COUNT) as pool:
-        print('WORKER_COUNT', WORKER_COUNT)
-        print('worker')
-        ps=pool.imap(partial(run_process, dev_memc=device_memc, opt_dry=options.dry), data_path)
+    path_list = sorted(list(glob.iglob(options.pattern)))
+    with Pool(processes=WORKERS_COUNT) as pool:
+        ps = pool.imap(partial(run_process, dev_memc=device_memc, opt_dry=options.dry), path_list)
         for p in ps:
-            logging.info('Process %s done' % p)
+            logging.info('Processing for %s finished' % p)
+
 
 def prototest():
     sample = "idfa\t1rfw452y52g2gq4g\t55.55\t42.42\t1423,43,567,3,7,23\ngaid\t7rfw452y52g2gq4g\t55.55\t42.42\t7423,424"
@@ -131,7 +187,8 @@ def prototest():
         packed = ua.SerializeToString()
         unpacked = appsinstalled_pb2.UserApps()
         unpacked.ParseFromString(packed)
-        assert ua == unpacked
+        assert ua == unpacked, "Test Failed"
+    logging.info("Test OK")
 
 
 if __name__ == '__main__':
