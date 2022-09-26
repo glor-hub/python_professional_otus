@@ -5,6 +5,7 @@ from users.models import CustomUser
 
 
 class CustomUserAdmin(UserAdmin):
-    pass
+    list_display = ('date_joined', 'avatar')
+
 
 admin.site.register(CustomUser, CustomUserAdmin)
