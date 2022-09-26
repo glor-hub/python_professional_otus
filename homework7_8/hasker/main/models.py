@@ -22,7 +22,8 @@ class Tag(models.Model):
 
 class Question(models.Model):
     title = models.CharField(max_length=128)
-    content = models.TextField()
+    slug = models.SlugField(max_length=256)
+    body = models.TextField()
     create_at = models.DateTimeField(default=timezone.now)
     author = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     votes_total = models.IntegerField(default=0)
@@ -62,7 +63,7 @@ class QuestionVote(models.Model):
 
 
 class Answer(models.Model):
-    content = models.TextField()
+    body = models.TextField()
     create_at = models.DateTimeField(default=timezone.now)
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
