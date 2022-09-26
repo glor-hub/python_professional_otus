@@ -4,10 +4,9 @@ from django.urls import path, include
 from django.conf.urls.static import static
 from hasker.settings import DEBUG
 
-from hasker import views
-
 urlpatterns = [
-    path('', views.index, name='home'),
+    path('hasker/', include('main.urls', namespace='main')),
+    path('auth/', include('siteauth.urls', namespace='auth')),
     path('admin/', admin.site.urls),
 ]
 
@@ -16,4 +15,3 @@ if DEBUG:
 if DEBUG:
     urlpatterns += static(settings.MEDIA_URL,
                           document_root=settings.MEDIA_ROOT)
-

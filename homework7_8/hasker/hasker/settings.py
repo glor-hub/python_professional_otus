@@ -40,7 +40,7 @@ INSTALLED_APPS = [
 
     # own
     'main.apps.MainConfig',
-    'users.apps.UsersConfig',
+    'siteauth.apps.SiteAuthConfig',
 ]
 
 MIDDLEWARE = [
@@ -123,8 +123,8 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-AUTH_USER_MODEL = 'users.CustomUser'
+AUTH_USER_MODEL = 'siteauth.SiteUser'
 
-LOGIN_URL = '/users/login/'
+LOGIN_URL = '/siteauth/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'

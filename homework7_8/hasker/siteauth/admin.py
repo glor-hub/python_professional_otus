@@ -1,11 +1,11 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from users.models import CustomUser
+from siteauth.models import SiteUser
 
 
-class CustomUserAdmin(UserAdmin):
+class SiteUserAdmin(UserAdmin):
     list_display = ('date_joined', 'avatar')
 
 
-admin.site.register(CustomUser, CustomUserAdmin)
+admin.site.register(SiteUser, SiteUserAdmin)

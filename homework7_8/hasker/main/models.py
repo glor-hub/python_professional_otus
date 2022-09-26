@@ -1,7 +1,7 @@
 from django.db import models
 from django.utils import timezone
 
-from users.models import CustomUser
+from siteauth.models import SiteUser
 
 LIKE = 'L'
 DISLIKE = 'D'
@@ -25,7 +25,7 @@ class Question(models.Model):
     slug = models.SlugField(max_length=256)
     body = models.TextField()
     create_at = models.DateTimeField(default=timezone.now)
-    author = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    author = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
     votes_total = models.IntegerField(default=0)
     votes_like = models.PositiveIntegerField(default=0)
     votes_dislike = models.PositiveIntegerField(default=0)
@@ -40,7 +40,7 @@ class Question(models.Model):
 
 
 class QuestionVote(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    user = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     status = models.CharField(max_length=1, choices=STATUS, default='N')
     add_like = models.BooleanField(default=False)
@@ -65,7 +65,7 @@ class QuestionVote(models.Model):
 class Answer(models.Model):
     body = models.TextField()
     create_at = models.DateTimeField(default=timezone.now)
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    user = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     is_correct = models.BooleanField(default=False)
 
@@ -74,7 +74,7 @@ class Answer(models.Model):
 
 
 class AnswerVote(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    user = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
     answer = models.ForeignKey(Answer, on_delete=models.CASCADE)
     status = models.CharField(max_length=1, choices=STATUS, default='N')
     add_like = models.BooleanField(default=False)

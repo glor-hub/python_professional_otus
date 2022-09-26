@@ -4,6 +4,6 @@ from django.utils import timezone
 
 # Create your models here.
 
-class CustomUser(AbstractUser):
+class SiteUser(AbstractUser):
     date_joined = models.DateTimeField(default=timezone.now)
     avatar = models.ImageField()
