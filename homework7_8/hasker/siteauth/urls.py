@@ -6,7 +6,7 @@ import siteauth.views as siteauth
 app_name = 'siteauth'
 
 urlpatterns = [
-    path('register/',  siteauth.SiteUserCreateView.as_view(), name='register'),
+    path('signup/',  siteauth.SiteUserCreateView.as_view(), name='signup'),
     path('login/', LoginView.as_view(), name='login'),
     path('logout/', LogoutView.as_view(), name='logout'),
 ]

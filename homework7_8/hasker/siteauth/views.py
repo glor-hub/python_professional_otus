@@ -6,5 +6,5 @@ from .models import SiteUser
 
 class SiteUserCreateView(CreateView):
     model = SiteUser
-    success_url = '/'
+    success_url = '/hasker/'
     form_class = SiteUserCreateForm
