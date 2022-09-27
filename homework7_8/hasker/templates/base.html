@@ -14,7 +14,11 @@
     {% else %}
     <li><a href="{% url 'siteauth:logout' %}">Logout</a></li>
     {% endif %}
+    {% if user.is_anonymous %}
     <li><a href="{% url 'siteauth:signup' %}">Signup</a></li>
+    {% else %}
+    <li><a href="{% url 'siteauth:settings' user.pk %}">{{user.username}}</a></li>
+    {% endif %}
 </ul>
 
 {% block main_content %}
