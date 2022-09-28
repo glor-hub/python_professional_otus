@@ -12,3 +12,4 @@ class SiteUserUpdateForm(UserChangeForm):
     class Meta:
         model = SiteUser
         fields = ('username', 'email', 'avatar')
+

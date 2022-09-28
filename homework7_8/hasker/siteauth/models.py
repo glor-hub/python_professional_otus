@@ -6,4 +6,4 @@ from django.utils import timezone
 
 class SiteUser(AbstractUser):
     date_joined = models.DateTimeField(default=timezone.now)
-    avatar = models.ImageField()
+    avatar = models.ImageField(upload_to='siteauth/', null=True)
