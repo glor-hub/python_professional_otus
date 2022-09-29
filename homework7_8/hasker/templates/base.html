@@ -11,13 +11,21 @@
 <ul>
     {% if user.is_anonymous %}
     <li><a href="{% url 'siteauth:login' %}">Login</a></li>
-     <li><a href="{% url 'siteauth:signup' %}">Signup</a></li>
+    <li><a href="{% url 'siteauth:signup' %}">Signup</a></li>
     {% else %}
     <li><a href="{% url 'siteauth:logout' %}">Logout</a></li>
     <li><a href="{% url 'siteauth:settings' user.pk %}">{{user.username}}</a></li>
     {% endif %}
 </ul>
-
+<ul>
+    {% if messages %}
+    <ul class="messages">
+        {% for message in messages %}
+        {{ message }}
+        {% endfor %}
+        {% endif %}
+    </ul>
+</ul>
 {% block main_content %}
 
 {% endblock %}

@@ -25,6 +25,7 @@ class SiteUserActionMixin:
 class SiteUserUpdateView(SiteUserActionMixin,
                          UpdateView):
     model = SiteUser
-    success_msg = "User`s data updated!"
     success_url = '/hasker/'
+    success_msg = "User`s data updated!"
     form_class = SiteUserUpdateForm
+
