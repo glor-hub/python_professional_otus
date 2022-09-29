@@ -6,6 +6,9 @@
         {% block title %}
         {% endblock %}
     </title>
+    <h1>
+        Hasker
+    </h1>
 </head>
 <body>
 <ul>
@@ -21,17 +24,22 @@
     {% if messages %}
     <ul class="messages">
         {% for message in messages %}
-        {{ message }}
+        {{message}}
         {% endfor %}
-        {% endif %}
     </ul>
+    {% endif %}
 </ul>
+
 {% block main_content %}
 
 {% endblock %}
 
-{% block menu %}
-
+{% block ask %}
+{% if user.is_anonymous %}
+<li><a href="{% url 'siteauth:signup' %}">Ask!</a></li>
+{% else %}
+<li><a href="{% url 'main:ask' %}">Ask!</a></li>
+{% endif %}
 {% endblock %}
 </body>
 </html>

@@ -36,6 +36,7 @@ class Question(models.Model):
 
     def save(self, *args, **kwargs):
         self.votes_total = self.votes_like - self.votes_dislike
+        self.slug = self.title
         super().save(*args, **kwargs)
 
 
