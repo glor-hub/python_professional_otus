@@ -5,7 +5,7 @@ from siteauth.models import SiteUser
 
 
 class SiteUserAdmin(UserAdmin):
-    list_display = ('date_joined', 'avatar')
+    list_display = ('username', 'email', 'avatar', 'date_joined',)
 
 
 admin.site.register(SiteUser, SiteUserAdmin)
