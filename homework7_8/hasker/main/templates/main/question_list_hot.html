@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block title %} {{ title }}
+{% endblock %}
+{% block main_content %}
+<li><a href="#">New Questions|</a><a href="{% url 'main:question_list_hot' %}">Hot Questions</a></li>
+{% endblock %}</html>

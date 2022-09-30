@@ -7,7 +7,7 @@
         {% endblock %}
     </title>
     <h1>
-        Hasker
+      <li><a href="{% url 'main:index' %}">Hasker</a></li>
     </h1>
 </head>
 <body>
@@ -31,14 +31,13 @@
 </ul>
 
 {% block main_content %}
-
 {% endblock %}
 
 {% block ask %}
 {% if user.is_anonymous %}
 <li><a href="{% url 'siteauth:signup' %}">Ask!</a></li>
 {% else %}
-<li><a href="{% url 'main:ask' %}">Ask!</a></li>
+<li><a href="{% url 'main:question_create' %}">Ask!</a></li>
 {% endif %}
 {% endblock %}
 </body>
