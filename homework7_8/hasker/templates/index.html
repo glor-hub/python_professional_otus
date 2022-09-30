@@ -7,7 +7,7 @@
     {% for object in object_list %}
     <div>
     <ul>{{object.title}}</ul>
-    <ul>Votes: {{object.votes_total}} Answers:      {{object.author}} asked {{object.create_at}} ago</ul>
+    <ul>Votes: {{object.votes_total}} Answers:  {{object.author}} asked {{ object.create_at|timesince:time_now }} ago</ul>
     </div>
 
     {% endfor %}

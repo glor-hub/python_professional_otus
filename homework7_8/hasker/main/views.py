@@ -1,5 +1,9 @@
+from time import timezone
+
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import render
+from django.utils import timezone
+
 from django.views.generic import DetailView, ListView, CreateView
 
 # from .forms import QuestionCreateForm
@@ -15,7 +19,13 @@ from .models import Question
 
 class QuestionListView(ListView):
     model = Question
-    paginate_by=2
+    paginate_by = 2
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['time_now'] = timezone.now
+        return context
+
 
 class NewQuestionListView(QuestionListView):
     template_name = 'index.html'
@@ -36,6 +46,6 @@ class QuestionCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.author = self.request.user
-        tags=form.instance.tags[:2]
-        form.instance.tags=tags
+        tags = form.instance.tags[:2]
+        form.instance.tags = tags
         return super().form_valid(form)
