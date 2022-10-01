@@ -2,5 +2,21 @@
 {% block title %} {{ title }}
 {% endblock %}
 {% block main_content %}
-<li><a href="#">New Questions|</a><a href="{% url 'main:question_list_hot' %}">Hot Questions</a></li>
-{% endblock %}</html>
+
+<ul>
+    <li><a href="{% url 'main:index' %}">New Questions|</a>Hot Questions</li>
+    {% for object in object_list %}
+    <div>
+    <ul>{{object.title}}</ul>
+    <ul>Votes: {{object.votes_total}} Answers:  {{object.author}} asked {{ object.create_at|timesince:time_now }} ago</ul>
+    </div>
+    {% endfor %}
+
+    <p>Trending</p>
+    {% for object in max_ratings_list %}
+    <ul> {{object.rating}} {{object.title}}</ul>
+    {% endfor %}
+
+</ul>
+
+{% endblock %}
