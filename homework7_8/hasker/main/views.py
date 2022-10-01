@@ -12,7 +12,7 @@ from .models import Question, Answer
 
 class QuestionListView(ListView):
     model = Question
-    paginate_by = 2
+    paginate_by = 20
     context_object_name ='object_list'
 
     def get_context_data(self, **kwargs):
