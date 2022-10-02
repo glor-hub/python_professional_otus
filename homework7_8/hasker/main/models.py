@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils import timezone
+from django.utils.text import slugify
 
 from siteauth.models import SiteUser
 
@@ -22,7 +23,7 @@ class Tag(models.Model):
 
 class Question(models.Model):
     title = models.CharField(max_length=128)
-    slug = models.SlugField(max_length=256)
+    slug = models.SlugField(max_length=256, null=False)
     body = models.TextField()
     create_at = models.DateTimeField(default=timezone.now)
     author = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
@@ -30,7 +31,7 @@ class Question(models.Model):
     rating = models.IntegerField(default=0)
     votes_like = models.PositiveIntegerField(default=0)
     votes_dislike = models.PositiveIntegerField(default=0)
-    tags = models.ManyToManyField(Tag, blank=True, related_name='questions')
+    tags = models.ManyToManyField(Tag)
 
     def __str__(self):
         return self.title
@@ -42,7 +43,7 @@ class Question(models.Model):
             self.rating = self.votes_like * 100 / sum_votes
         else:
             self.rating = 0
-        self.slug = self.title
+        self.slug = slugify(self.title)
         super().save(*args, **kwargs)
 
 

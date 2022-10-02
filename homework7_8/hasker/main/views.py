@@ -43,8 +43,8 @@ class QuestionCreateView(LoginRequiredMixin, CreateView):
     def form_valid(self, form):
         form.instance.author = self.request.user
         form.instance.save()
-        tag1,tag2 = form.instance.tags
-        form.instance.tags.add(tag1,tag2)
+        # tag1,tag2 = form.instance.tags
+        # form.instance.tags.add(tag1,tag2)
         return super().form_valid(form)
 
 class AnswerCreateView(LoginRequiredMixin, CreateView):

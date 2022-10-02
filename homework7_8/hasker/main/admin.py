@@ -2,11 +2,15 @@ from django.contrib import admin
 
 from .models import Question, QuestionVote, Answer, AnswerVote, Tag
 
+
 class QuestionAdmin(admin.ModelAdmin):
-    list_display = ('title','author','create_at','votes_total', 'rating')
+    list_display = ('title', 'author', 'create_at', 'votes_total', 'rating')
     prepopulated_fields = {'slug': ('title',)}
-    ordering = ('votes_total','tags')
+    filter_horizontal = ('tags',)
+    ordering = ('votes_total', )
     list_filter = ['create_at']
+    list_per_page = 5
+
 
 admin.site.register(Question, QuestionAdmin)
 admin.site.register(QuestionVote)
