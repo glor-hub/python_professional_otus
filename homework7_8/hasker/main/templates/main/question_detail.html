@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %} {{ title }}
+{% endblock %}
+{% block main_content %}
+
+<ul>
+
+    <ul>{{object.title}}</ul>
+    <ul>{{object.body}}</ul>
+    {% for object in object.tags %}
+    <ul> {{object.title}} </ul>
+    {% endfor %}
+
+    <p>Trending</p>
+    {% for object in max_ratings_list %}
+    <ul> {{object.rating}} {{object.title}}</ul>
+    {% endfor %}
+
+</ul>
+
+{% endblock %}

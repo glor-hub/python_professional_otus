@@ -15,7 +15,7 @@ STATUS = [
 
 
 class Tag(models.Model):
-    title = models.CharField(max_length=32)
+    title = models.CharField(max_length=32, unique=True)
 
     def __str__(self):
         return self.title
@@ -31,7 +31,8 @@ class Question(models.Model):
     rating = models.IntegerField(default=0)
     votes_like = models.PositiveIntegerField(default=0)
     votes_dislike = models.PositiveIntegerField(default=0)
-    tags = models.ManyToManyField(Tag)
+    tags = models.ManyToManyField(Tag, blank=True)
+    tags_string = models.CharField(max_length=128, blank=True)
 
     def __str__(self):
         return self.title
@@ -44,6 +45,10 @@ class Question(models.Model):
         else:
             self.rating = 0
         self.slug = slugify(self.title)
+        # tag_list = self.tags_string.split(',')
+        # for tg in tag_list:
+        #
+        #     self.tags.add(tg.lower())
         super().save(*args, **kwargs)
 
 
