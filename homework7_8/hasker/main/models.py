@@ -21,6 +21,15 @@ class Tag(models.Model):
     def __str__(self):
         return self.title
 
+class Answer(models.Model):
+    body = models.TextField()
+    create_at = models.DateTimeField(default=timezone.now)
+    user = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
+    question = models.ForeignKey('Question', on_delete=models.CASCADE)
+    is_favorite = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"answer id={self.pk}: {self.content}"
 
 class Question(models.Model):
     title = models.CharField(max_length=128)
@@ -46,13 +55,6 @@ class Question(models.Model):
         else:
             self.rating = 0
         self.slug = slugify(self.title)
-        # tag_list=Tag.objects.all()
-        # tags = self.tags_string
-        # print('tags:',tags)
-        # for tg in tags.split(','):
-        #     if tg in tag_list:
-        #         self.tags.add(tg.lower())
-        # print('attr:',self.tags)
         super().save(*args, **kwargs)
 
     def get_absolute_url(self):
@@ -82,15 +84,7 @@ class QuestionVote(models.Model):
         super().save(*args, **kwargs)
 
 
-class Answer(models.Model):
-    body = models.TextField()
-    create_at = models.DateTimeField(default=timezone.now)
-    user = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
-    question = models.ForeignKey(Question, on_delete=models.CASCADE)
-    is_correct = models.BooleanField(default=False)
 
-    def __str__(self):
-        return f"answer id={self.pk}: {self.content}"
 
 
 class AnswerVote(models.Model):

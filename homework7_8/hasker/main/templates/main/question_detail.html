@@ -15,5 +15,19 @@
     {% endfor %}
 
 </ul>
+<ul>
+{% for obj in object.a %}
+    <ul>{{object.title}}</ul>
+    <ul>{{object.body}}</ul>
+
+
+</ul>
+<div >
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <input type="submit" value="Ask!">
+        </form>
+    </div>
 
 {% endblock %}

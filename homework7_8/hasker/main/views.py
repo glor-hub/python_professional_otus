@@ -1,15 +1,12 @@
 from time import timezone
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import HttpResponseRedirect
 
-from django.shortcuts import render
-from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 
 from django.views.generic import DetailView, ListView, CreateView
 
-from .forms import QuestionCreateForm
+from .forms import QuestionCreateForm, AnswerCreateForm
 from .models import Question, Answer, Tag
 
 
@@ -54,15 +51,28 @@ class QuestionCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-# class AnswerCreateView(LoginRequiredMixin, CreateView):
-#     model = Answer
-#     fields = ['body']
-#     success_url = 'index.html'
-#
-#     def get_context_data(self, **kwargs):
-#         context = super().get_context_data(**kwargs)
-#         context['success_msg'] = 'Your answer added successfully'
-#         return context
+class AnswerCreateView(LoginRequiredMixin, CreateView):
+    form_class = AnswerCreateForm
+    model = Answer
+    fields = ['body']
+    success_url = 'index.html'
+
+    def form_valid(self, form):
+        instance = form.save(commit=False)
+        instance.user = self.request.user
+        instance.question = Question.objects.get(slug=self.kwargs['question_slug'])
+        instance.save()
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['success_msg'] = 'Your answer added successfully'
+        return context
+
+    def qet_queryset(self,**kwargs):
+        queryset=super().get_context_data(**kwargs)
+        queryset=queryset.filter(instance.question.slug==self.kwargs['question_slug'])
+        return queryset
 
 class QuestionDetailView(DetailView):
     model = Question
