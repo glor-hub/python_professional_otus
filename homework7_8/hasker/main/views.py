@@ -4,7 +4,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponseRedirect
 
 from django.shortcuts import render
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 
 from django.views.generic import DetailView, ListView, CreateView
@@ -38,29 +38,43 @@ class HotQuestionListView(QuestionListView):
 class QuestionCreateView(LoginRequiredMixin, CreateView):
     form_class = QuestionCreateForm
     model = Question
-    # success_url = '/question/<slug:slug>'
+    # success_url =reverse_lazy('/question/<slug:question_slug>')
     template_name = 'main/question_create.html'
-
-    # success_url = ''
 
     def form_valid(self, form):
         instance = form.save(commit=False)
         instance.author = self.request.user
         instance.save()
-        tag_tuple = form.cleaned_data['tags_string']
-        for tg in tag_tuple:
-            t, created = Tag.objects.get_or_create(title=tg.lower())
-            instance.tags.add(t)
-        # return HttpResponseRedirect(reverse('question_detail', kwargs={'slug': instance.slug}))
-        return HttpResponseRedirect(reverse('index'))
+        tags_list = Tag.objects.all()
+        tags_strings=instance.tags_string
+        print('tags_strings',tags_strings)
+        for tg in tags_strings.split(','):
+            if tg.lower() in tags_list.tags:
+                print(tg)
+                instance.tags=tg
+                print('ok')
+                instance.save()
+        return super().form_valid(form)
 
 
-class AnswerCreateView(LoginRequiredMixin, CreateView):
-    model = Answer
-    fields = ['body']
-    success_url = 'index.html'
+# class AnswerCreateView(LoginRequiredMixin, CreateView):
+#     model = Answer
+#     fields = ['body']
+#     success_url = 'index.html'
+#
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+#         context['success_msg'] = 'Your answer added successfully'
+#         return context
+
+class QuestionDetailView(DetailView):
+    model = Question
+    template_name = 'main/question_detail.html'
+
+    def get_object(self, **kwargs):
+        return Question.objects.get(slug=self.kwargs['question_slug'])
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['success_msg'] = 'Your answer added successfully'
+        context['max_ratings_list'] = Question.objects.order_by('-rating')[:2]
         return context

@@ -1,0 +1,17 @@
+<div>
+
+    {% for object in object_list %}
+    <div>
+    <ul>{{object.title}}</ul>
+    <ul>Votes: {{object.votes_total}}
+        Answers:  {{object.author}}
+        asked {{ object.create_at|timesince:time_now }} ago</ul>
+    </div>
+    {% endfor %}
+
+    <p>Trending</p>
+    {% for object in max_ratings_list %}
+    <ul> {{object.rating}} {{object.title}}</ul>
+    {% endfor %}
+
+</div>

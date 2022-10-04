@@ -7,13 +7,11 @@
 
     <ul>{{object.title}}</ul>
     <ul>{{object.body}}</ul>
-    {% for object in object.tags %}
-    <ul> {{object.title}} </ul>
-    {% endfor %}
+
 
     <p>Trending</p>
-    {% for object in max_ratings_list %}
-    <ul> {{object.rating}} {{object.title}}</ul>
+    {% for obj in max_ratings_list %}
+    <ul> {{obj.rating}} {{obj.title}}</ul>
     {% endfor %}
 
 </ul>

@@ -3,14 +3,10 @@
 {% endblock %}
 {% block main_content %}
 <ul>
-    <ul>New Questions|<a href="{% url 'main:question_list_hot' %}">Hot Questions</a></ul>
-    {% for object in object_list %}
-    <div>
-    <ul>{{object.title}}</ul>
-    <ul>Votes: {{object.votes_total}} Answers:  {{object.author}} asked {{ object.create_at|timesince:time_now }} ago</ul>
-    </div>
+    <ul>New Questions|<a href="{% url "main:question_list_hot" %}">Hot Questions</a></ul>
 
-    {% endfor %}
+    {% include "base_question.html" %}
+
 </ul>
 
 {% include "paginator.html" with page=page_obj %}

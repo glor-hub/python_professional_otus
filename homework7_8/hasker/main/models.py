@@ -1,4 +1,5 @@
 from django.db import models
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
 
@@ -23,7 +24,7 @@ class Tag(models.Model):
 
 class Question(models.Model):
     title = models.CharField(max_length=128)
-    slug = models.SlugField(max_length=256, null=False)
+    slug = models.SlugField(max_length=256, null=False, unique=True)
     body = models.TextField()
     create_at = models.DateTimeField(default=timezone.now)
     author = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
@@ -31,8 +32,8 @@ class Question(models.Model):
     rating = models.IntegerField(default=0)
     votes_like = models.PositiveIntegerField(default=0)
     votes_dislike = models.PositiveIntegerField(default=0)
-    tags = models.ManyToManyField(Tag, blank=True)
-    tags_string = models.CharField(max_length=128, blank=True)
+    tags = models.ManyToManyField(Tag)
+    tags_string = models.CharField(max_length=128)
 
     def __str__(self):
         return self.title
@@ -45,11 +46,17 @@ class Question(models.Model):
         else:
             self.rating = 0
         self.slug = slugify(self.title)
-        # tag_list = self.tags_string.split(',')
-        # for tg in tag_list:
-        #
-        #     self.tags.add(tg.lower())
+        # tag_list=Tag.objects.all()
+        # tags = self.tags_string
+        # print('tags:',tags)
+        # for tg in tags.split(','):
+        #     if tg in tag_list:
+        #         self.tags.add(tg.lower())
+        # print('attr:',self.tags)
         super().save(*args, **kwargs)
+
+    def get_absolute_url(self):
+        return reverse('main:question_detail', kwargs={'question_slug': self.slug})
 
 
 class QuestionVote(models.Model):
