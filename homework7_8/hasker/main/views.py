@@ -38,22 +38,19 @@ class HotQuestionListView(QuestionListView):
 class QuestionCreateView(LoginRequiredMixin, CreateView):
     form_class = QuestionCreateForm
     model = Question
-    # success_url =reverse_lazy('/question/<slug:question_slug>')
     template_name = 'main/question_create.html'
 
     def form_valid(self, form):
+        tag_list = []
         instance = form.save(commit=False)
         instance.author = self.request.user
         instance.save()
-        tags_list = Tag.objects.all()
-        tags_strings=instance.tags_string
-        print('tags_strings',tags_strings)
-        for tg in tags_strings.split(','):
-            if tg.lower() in tags_list.tags:
-                print(tg)
-                instance.tags=tg
-                print('ok')
-                instance.save()
+        tags_strings = instance.tags_string
+        for tg in Tag.objects.all():
+            tag_list.append(tg.title)
+        for tag in tags_strings.split(','):
+            if tag in tag_list:
+                instance.tags.add(Tag.objects.get(title=tag))
         return super().form_valid(form)
 
 
