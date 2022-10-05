@@ -138,3 +138,14 @@ AUTH_USER_MODEL = 'siteauth.SiteUser'
 LOGIN_URL = 'siteauth/login/'
 LOGIN_REDIRECT_URL = '/hasker/'
 LOGOUT_REDIRECT_URL = '/hasker/'
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_USE_TLS = True
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST_USER = 'sorinainna29@gmail.com'
+EMAIL_HOST_PASSWORD = 'XM9wB19u'
+EMAIL_PORT = 587
+
+DEFAULT_RECIPIENTS_EMAIL = ['sorinainna29@gmail.com',]
+DEFAULT_FROM_EMAIL = 'sorinainna29@gmail.com'
+LOCALHOST = " http://127.0.0.1:8000"
