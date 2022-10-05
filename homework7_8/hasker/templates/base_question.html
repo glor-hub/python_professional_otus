@@ -2,10 +2,15 @@
 
     {% for object in object_list %}
     <div>
-    <ul>{{object.title}}</ul>
-    <ul>Votes: {{object.votes_total}}
-        Answers:  {{object.author}}
-        asked {{ object.create_at|timesince:time_now }} ago</ul>
+    <br>
+        <ul>Question:<a href="{{ object.get_absolute_url }}">{{object.title}}</a></ul>
+        Tags:
+        {% for tag in object.tags.all %}
+       <ul>{{tag.title}}</ul>
+        {% endfor %}
+
+    <ul>Votes: {{object.votes_total}} Answers: {{object.get_answers_count}}
+        {{object.author}} asked {{ object.create_at|timesince:time_now }} ago</ul>
     </div>
     {% endfor %}
 

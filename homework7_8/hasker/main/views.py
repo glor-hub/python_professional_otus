@@ -25,6 +25,7 @@ class QuestionListView(ListView):
         return context
 
 
+
 class NewQuestionListView(QuestionListView):
     template_name = 'index.html'
     ordering = ('-create_at',)
@@ -52,30 +53,6 @@ class QuestionCreateView(LoginRequiredMixin, CreateView):
             if tag in tag_list:
                 instance.tags.add(Tag.objects.get(title=tag))
         return super().form_valid(form)
-
-
-
-# class AnswerCreateView(LoginRequiredMixin, CreateView):
-#     form_class = AnswerCreateForm
-#     model = Answer
-#     template_name = 'main/question_detail.html'
-#
-#     def form_valid(self, form):
-#         instance = form.save(commit=False)
-#         instance.user = self.request.user
-#         instance.question = Question.objects.get(slug=self.kwargs['question_slug'])
-#         instance.save()
-#         return super().form_valid(form)
-#
-#     def get_context_data(self, **kwargs):
-#         context = super().get_context_data(**kwargs)
-#         context['success_msg'] = 'Your answer added successfully'
-#         return context
-#
-#     def qet_queryset(self, **kwargs):
-#         queryset = super().get_context_data(**kwargs)
-#         queryset = queryset.filter(instance.question.slug == self.kwargs['question_slug'])
-#         return queryset
 
 
 class QuestionDetailView(DetailView):

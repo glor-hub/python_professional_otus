@@ -41,7 +41,7 @@ class Question(models.Model):
     rating = models.IntegerField(default=0)
     votes_like = models.PositiveIntegerField(default=0)
     votes_dislike = models.PositiveIntegerField(default=0)
-    tags = models.ManyToManyField(Tag)
+    tags = models.ManyToManyField(Tag, related_name='tags')
     tags_string = models.CharField(max_length=128)
 
     def __str__(self):
@@ -59,6 +59,9 @@ class Question(models.Model):
 
     def get_absolute_url(self):
         return reverse('main:question_detail', kwargs={'question_slug': self.slug})
+
+    def get_answers_count(self):
+        return Answer.objects.filter(question=self).count()
 
 
 class QuestionVote(models.Model):
