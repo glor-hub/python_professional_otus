@@ -2,7 +2,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 
-from .models import Question, Tag
+from .models import Question, Tag, Answer
 
 
 class QuestionCreateForm(forms.ModelForm):
@@ -21,6 +21,6 @@ class QuestionCreateForm(forms.ModelForm):
 
 class AnswerCreateForm(forms.ModelForm):
     class Meta:
-        model = Question
+        model = Answer
         fields = ['body']
         labels={'body':'Your answer:'}

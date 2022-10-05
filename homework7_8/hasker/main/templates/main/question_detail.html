@@ -4,9 +4,17 @@
 {% block main_content %}
 
 <ul>
+    <p>Question:</p>
+    <ul>{{question.title}}</ul>
+    <ul>{{question.body}}</ul>
 
-    <ul>{{object.title}}</ul>
-    <ul>{{object.body}}</ul>
+    <p>Answers:</p>
+    {% for obj in answers_list %}
+    <ul> {{obj.body}} </ul>
+     <br>
+    {% endfor %}
+
+
 
 
     <p>Trending</p>
@@ -15,19 +23,14 @@
     {% endfor %}
 
 </ul>
-<ul>
-{% for obj in object.a %}
-    <ul>{{object.title}}</ul>
-    <ul>{{object.body}}</ul>
 
-
-</ul>
 <div >
         <form method="post">
             {% csrf_token %}
             {{ form.as_p }}
-            <input type="submit" value="Ask!">
+            <input type="submit" value="Submit!">
         </form>
-    </div>
+</div>
+
 
 {% endblock %}

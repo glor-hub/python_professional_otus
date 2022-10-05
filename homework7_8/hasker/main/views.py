@@ -1,10 +1,13 @@
 from time import timezone
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.shortcuts import get_object_or_404
+from django.urls import reverse
 
 from django.utils import timezone
 
 from django.views.generic import DetailView, ListView, CreateView
+from django.views.generic.edit import FormMixin
 
 from .forms import QuestionCreateForm, AnswerCreateForm
 from .models import Question, Answer, Tag
@@ -51,11 +54,54 @@ class QuestionCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class AnswerCreateView(LoginRequiredMixin, CreateView):
+
+# class AnswerCreateView(LoginRequiredMixin, CreateView):
+#     form_class = AnswerCreateForm
+#     model = Answer
+#     template_name = 'main/question_detail.html'
+#
+#     def form_valid(self, form):
+#         instance = form.save(commit=False)
+#         instance.user = self.request.user
+#         instance.question = Question.objects.get(slug=self.kwargs['question_slug'])
+#         instance.save()
+#         return super().form_valid(form)
+#
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+#         context['success_msg'] = 'Your answer added successfully'
+#         return context
+#
+#     def qet_queryset(self, **kwargs):
+#         queryset = super().get_context_data(**kwargs)
+#         queryset = queryset.filter(instance.question.slug == self.kwargs['question_slug'])
+#         return queryset
+
+
+class QuestionDetailView(DetailView):
+    model = Question
+    template_name = 'main/question_detail.html'
+    context_object_name = 'question'
+
+    def get_object(self, **kwargs):
+        return Question.objects.get(slug=self.kwargs['question_slug'])
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['max_ratings_list'] = Question.objects.order_by('-rating')[:2]
+        return context
+
+
+class QuestionView(FormMixin, QuestionDetailView):
     form_class = AnswerCreateForm
-    model = Answer
-    fields = ['body']
-    success_url = 'index.html'
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form = self.get_form()
+        if form.is_valid():
+            return self.form_valid(form)
+        else:
+            return self.form_invalid(form)
 
     def form_valid(self, form):
         instance = form.save(commit=False)
@@ -64,24 +110,12 @@ class AnswerCreateView(LoginRequiredMixin, CreateView):
         instance.save()
         return super().form_valid(form)
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['success_msg'] = 'Your answer added successfully'
-        return context
-
-    def qet_queryset(self,**kwargs):
-        queryset=super().get_context_data(**kwargs)
-        queryset=queryset.filter(instance.question.slug==self.kwargs['question_slug'])
-        return queryset
-
-class QuestionDetailView(DetailView):
-    model = Question
-    template_name = 'main/question_detail.html'
-
-    def get_object(self, **kwargs):
-        return Question.objects.get(slug=self.kwargs['question_slug'])
+    def get_success_url(self):
+        return reverse('main:question_detail', kwargs={'question_slug': self.kwargs['question_slug']})
+        # return reverse('main:question_detail', kwargs={'question_slug': super().get_object().slug})
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['max_ratings_list'] = Question.objects.order_by('-rating')[:2]
+        question_slug = get_object_or_404(Question, slug=self.kwargs['question_slug'])
+        context['answers_list'] = Answer.objects.filter(question=question_slug)
         return context
