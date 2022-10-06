@@ -26,10 +26,22 @@ class Answer(models.Model):
     create_at = models.DateTimeField(default=timezone.now)
     user = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
     question = models.ForeignKey('Question', on_delete=models.CASCADE)
+    votes_total = models.IntegerField(default=0)
+    rating = models.IntegerField(default=0)
+    votes_like = models.PositiveIntegerField(default=0)
+    votes_dislike = models.PositiveIntegerField(default=0)
     is_favorite = models.BooleanField(default=False)
 
     def __str__(self):
         return f"answer id={self.pk}: {self.body}"
+    def save(self, *args, **kwargs):
+        self.votes_total = self.votes_like - self.votes_dislike
+        sum_votes = self.votes_like + self.votes_dislike
+        if sum_votes:
+            self.rating = self.votes_like * 100 / sum_votes
+        else:
+            self.rating = 0
+        super().save(*args, **kwargs)
 
 class Question(models.Model):
     title = models.CharField(max_length=128)

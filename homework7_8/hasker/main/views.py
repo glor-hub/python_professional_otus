@@ -109,7 +109,7 @@ class QuestionView(FormMixin, QuestionDetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         question_slug = get_object_or_404(Question, slug=self.kwargs['question_slug'])
-        answers_list=Answer.objects.filter(question=question_slug)
+        answers_list=Answer.objects.filter(question=question_slug).order_by('-rating','-create_at')
         paginator = Paginator(answers_list, per_page=30)
         page_number = self.request.GET.get('page')
         page = paginator.get_page(page_number)
