@@ -29,7 +29,7 @@ class Answer(models.Model):
     is_favorite = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"answer id={self.pk}: {self.content}"
+        return f"answer id={self.pk}: {self.body}"
 
 class Question(models.Model):
     title = models.CharField(max_length=128)

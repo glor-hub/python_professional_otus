@@ -139,6 +139,7 @@ LOGIN_URL = 'siteauth/login/'
 LOGIN_REDIRECT_URL = '/hasker/'
 LOGOUT_REDIRECT_URL = '/hasker/'
 
+USE_EMAIL_NOTIFICATION = False
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_USE_TLS = True
 EMAIL_HOST = 'smtp.gmail.com'

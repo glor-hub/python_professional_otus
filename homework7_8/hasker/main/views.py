@@ -14,7 +14,7 @@ from django.views.generic.edit import FormMixin
 
 from .forms import QuestionCreateForm, AnswerCreateForm
 from .models import Question, Answer, Tag
-from hasker.settings import LOCALHOST, DEFAULT_FROM_EMAIL
+from hasker.settings import LOCALHOST, DEFAULT_FROM_EMAIL,USE_EMAIL_NOTIFICATION
 
 
 class QuestionListView(ListView):
@@ -27,7 +27,6 @@ class QuestionListView(ListView):
         context['time_now'] = timezone.now
         context['max_ratings_list'] = Question.objects.order_by('-rating')[:2]
         return context
-
 
 
 class NewQuestionListView(QuestionListView):
@@ -85,25 +84,27 @@ class QuestionView(FormMixin, QuestionDetailView):
             return self.form_invalid(form)
 
     def form_valid(self, form):
-        RECIPIENTS_EMAIL=[]
+
         instance = form.save(commit=False)
         instance.user = self.request.user
         instance.question = Question.objects.get(slug=self.kwargs['question_slug'])
         instance.save()
-        RECIPIENTS_EMAIL.append(instance.question.author.email)
-        link = LOCALHOST + self.get_success_url()
-        send_mail(
-            'Hello,',
-            f'There is a new answer to your question:{link}',
-            DEFAULT_FROM_EMAIL,
-            RECIPIENTS_EMAIL,
-            fail_silently=False,
-        )
+        flag_email=USE_EMAIL_NOTIFICATION
+        if flag_email:
+            recipients_email = []
+            recipients_email.append(instance.question.author.email)
+            link = LOCALHOST + self.get_success_url()
+            send_mail(
+                'Hello,',
+                f'There is a new answer to your question:{link}',
+                DEFAULT_FROM_EMAIL,
+                recipients_email,
+                fail_silently=False,
+            )
         return super().form_valid(form)
 
     def get_success_url(self):
         return reverse('main:question_detail', kwargs={'question_slug': self.kwargs['question_slug']})
-
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
