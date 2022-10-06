@@ -21,8 +21,9 @@ class Tag(models.Model):
     def __str__(self):
         return self.title
 
+
 class Answer(models.Model):
-    body = models.TextField()
+    body = models.TextField(unique=True)
     create_at = models.DateTimeField(default=timezone.now)
     user = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
     question = models.ForeignKey('Question', on_delete=models.CASCADE)
@@ -34,6 +35,7 @@ class Answer(models.Model):
 
     def __str__(self):
         return f"answer id={self.pk}: {self.body}"
+
     def save(self, *args, **kwargs):
         self.votes_total = self.votes_like - self.votes_dislike
         sum_votes = self.votes_like + self.votes_dislike
@@ -42,6 +44,7 @@ class Answer(models.Model):
         else:
             self.rating = 0
         super().save(*args, **kwargs)
+
 
 class Question(models.Model):
     title = models.CharField(max_length=128)
@@ -80,46 +83,51 @@ class QuestionVote(models.Model):
     user = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     status = models.CharField(max_length=1, choices=STATUS, default='N')
-    add_like = models.BooleanField(default=False)
+    event_dislike = models.BooleanField(default=False)
+    event_like = models.BooleanField(default=False)
     add_dislike = models.BooleanField(default=False)
+    add_like = models.BooleanField(default=False)
 
     class Meta:
         unique_together = (('user', 'question'),)
 
     def save(self, *args, **kwargs):
         sts = self.status
-        if self.add_like:
+        if self.event_like:
             if sts == NONE or sts == DISLIKE:
                 self.status = LIKE
-            self.add_like = False
-        if self.add_dislike:
+                self.add_like = True
+            self.event_like = False
+        if self.event_dislike:
             if sts == NONE or sts == LIKE:
                 self.status = DISLIKE
-            self.add_dislike = False
+                self.add_dislike = True
+            self.event_dislike = False
         super().save(*args, **kwargs)
-
-
-
 
 
 class AnswerVote(models.Model):
     user = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
     answer = models.ForeignKey(Answer, on_delete=models.CASCADE)
     status = models.CharField(max_length=1, choices=STATUS, default='N')
-    add_like = models.BooleanField(default=False)
+    event_dislike = models.BooleanField(default=False)
+    event_like = models.BooleanField(default=False)
     add_dislike = models.BooleanField(default=False)
+    add_like = models.BooleanField(default=False)
 
     class Meta:
         unique_together = (('user', 'answer'),)
 
     def save(self, *args, **kwargs):
         sts = self.status
-        if self.add_like:
+        if self.event_like:
             if sts == NONE or sts == DISLIKE:
                 self.status = LIKE
-            self.add_like = False
-        if self.add_dislike:
+                self.add_like = True
+            self.event_like = False
+        if self.event_dislike:
             if sts == NONE or sts == LIKE:
                 self.status = DISLIKE
-            self.add_dislike = False
+                self.add_dislike = True
+            self.event_dislike = False
         super().save(*args, **kwargs)

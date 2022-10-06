@@ -5,17 +5,19 @@
 
 <ul>
     <p>Question:</p>
-    <ul>{{question.title}}</ul>
-    <ul>{{question.body}}</ul>
+    <ul>title: {{question.title}}</ul>
+    <ul>body: {{question.body}}</ul>
 
     <p>Answers:</p>
     {% for obj in answers_list %}
     <ul>
-        <a href="{% url 'main:reduce_voice' object.pk %}">
-            <button id="plus">-</button></a>
-        rating: {{obj.rating}}
-      <a href="{% url 'main:add_voice' object.pk %}">
-                                        <button id="plus">+</button></a>
+
+      <a href="?a_dislike={{True}}&a_pk={{obj.pk}}"style="text-decoration: none;">-</a>
+
+      rating: {{obj.rating}}
+
+      <a href="?a_like={{True}}&a_pk={{obj.pk}}"style="text-decoration: none;">+</a>
+
         {{obj.body}} </ul>
      <br>
     {% endfor %}

@@ -5,6 +5,7 @@ import smtplib
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.mail import send_mail
 from django.core.paginator import Paginator
+from django.db.models import F
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 
@@ -14,7 +15,7 @@ from django.views.generic import DetailView, ListView, CreateView
 from django.views.generic.edit import FormMixin
 
 from .forms import QuestionCreateForm, AnswerCreateForm
-from .models import Question, Answer, Tag
+from .models import Question, Answer, Tag, AnswerVote
 from hasker.settings import LOCALHOST, DEFAULT_FROM_EMAIL,USE_EMAIL_NOTIFICATION
 
 
@@ -73,6 +74,10 @@ class QuestionDetailView(DetailView):
         return context
 
 
+# def get_object_or_create(AnswerVote, user, answer):
+#     pass
+
+
 class QuestionView(FormMixin, QuestionDetailView):
     form_class = AnswerCreateForm
 
@@ -115,4 +120,43 @@ class QuestionView(FormMixin, QuestionDetailView):
         page = paginator.get_page(page_number)
         context['page'] = page
         context['answers_list'] = page.object_list
+        a_dislike = self.request.GET.get('a_dislike')
+        a_like = self.request.GET.get('a_like')
+        if a_dislike or a_like:
+            answer = get_object_or_404(Answer, pk=self.request.GET.get('a_pk'))
+            answer_vote, created = AnswerVote.objects.get_or_create(user=self.request.user, answer=answer)
+            self.vote_result(answer_vote)
+            if answer_vote.add_like:
+                answer.votes_like = F('votes_like') +1
+            if answer_vote.add_dislike:
+                answer.votes_dislike = F('votes_dislike')+1
+            answer.save()
+        # add_dislike = self.request.GET.get('dislike')
+        # add_like = self.request.GET.get('like')
+
+        # self.get_vote(AnswerVote, query_obj)
+        # get_vote(AnswerVote):
+        # answer_vote=get_object_or_404(AnswerVote(user=self.request.user, question=question_slug))
+        # add_dislike=self.request.GET.get('dislike')
+        # add_like = self.request.GET.get('like')
+        # if add_dislike:
+        #     answer_vote.add_dislike=True
+        # if add_like:
+        #     answer_vote.add_like=True
         return context
+
+    # def get_vote(self,class_vote, query_obj):
+    #     instanse_vote = get_object_or_404(class_vote, user=self.request.user, question=question_slug)
+
+
+
+    def vote_result(self, instance):
+        a_dislike = self.request.GET.get('a_dislike')
+        a_like = self.request.GET.get('a_like')
+        if a_dislike:
+            instance.event_dislike = True
+        if a_like:
+            instance.event_like = True
+        instance.save()
+
+
