@@ -10,7 +10,13 @@
 
     <p>Answers:</p>
     {% for obj in answers_list %}
-    <ul>rating: {{obj.rating}} {{obj.body}} </ul>
+    <ul>
+        <a href="{% url 'main:reduce_voice' object.pk %}">
+            <button id="plus">-</button></a>
+        rating: {{obj.rating}}
+      <a href="{% url 'main:add_voice' object.pk %}">
+                                        <button id="plus">+</button></a>
+        {{obj.body}} </ul>
      <br>
     {% endfor %}
 
