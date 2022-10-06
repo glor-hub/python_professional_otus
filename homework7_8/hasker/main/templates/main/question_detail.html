@@ -15,7 +15,7 @@
     {% endfor %}
 
 
-
+{% include "paginator.html" %}
 
     <p>Trending</p>
     {% for obj in max_ratings_list %}
@@ -31,6 +31,7 @@
             <input type="submit" value="Submit!">
         </form>
 </div>
+
 
 
 {% endblock %}
