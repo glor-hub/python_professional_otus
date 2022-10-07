@@ -127,6 +127,12 @@ class QuestionView(FormMixin, QuestionDetailView):
         page = paginator.get_page(page_number)
         context['page'] = page
         context['answers_list'] = page.object_list
+        self.get_answer_vote_process()
+        self.get_question_vote_process(question)
+        self.get_favorite_answer(question)
+        return context
+
+    def get_answer_vote_process(self):
         a_dislike = self.request.GET.get('a_dislike')
         a_like = self.request.GET.get('a_like')
         if a_dislike or a_like:
@@ -152,6 +158,8 @@ class QuestionView(FormMixin, QuestionDetailView):
                     answer_vote.add_dislike = False
                 answer.save()
                 answer_vote.save()
+
+    def get_question_vote_process(self, question):
         q_dislike = self.request.GET.get('q_dislike')
         q_like = self.request.GET.get('q_like')
         if q_dislike or q_like:
@@ -160,9 +168,10 @@ class QuestionView(FormMixin, QuestionDetailView):
                     'To vote it is necessary to register.')
             if question.author == self.request.user:
                 raise ValidationError(
-                    'You cannot vote for your own answer.')
+                    'You cannot vote for your own question.')
             else:
-                question_vote, created = QuestionVote.objects.get_or_create(user=self.request.user, question=question)
+                question_vote, created = QuestionVote.objects.get_or_create(user=self.request.user,
+                                                                            question=question)
                 if q_dislike:
                     question_vote.event_dislike = True
                 if q_like:
@@ -176,16 +185,28 @@ class QuestionView(FormMixin, QuestionDetailView):
                     question_vote.add_dislike = False
                 question.save()
                 question_vote.save()
-        return context
 
-    # def get_vote(self,class_vote, query_obj):
-    #     instanse_vote = get_object_or_404(class_vote, user=self.request.user, question=question_slug)
+    def get_favorite_answer(self, question):
+        non_favor = self.request.GET.get('non_favor')
+        favor = self.request.GET.get('favor')
+        if non_favor or favor:
+            if self.request.user.is_anonymous:
+                raise ValidationError(
+                    'To favour the answer it is necessary to register.')
+            if question.author != self.request.user:
+                raise ValidationError(
+                    'You can only favour for answer of own question only.')
+            else:
+                if favor:
+                    favor_answer=get_object_or_404(Answer, pk=self.request.GET.get('a_pk'))
+                    print(favor_answer)
+                    favor_answer.is_favorite = True
+                    favor_answer.save()
+                    non_favor_answers=Answer.objects.exclude(pk=self.request.GET.get('a_pk'))
+                    non_favor_answers.update(is_favorite=False)
+                if non_favor:
+                    unfavor_answer = get_object_or_404(Answer, pk=self.request.GET.get('a_pk'))
+                    unfavor_answer.is_favorite = False
+                    unfavor_answer.save()
 
-    # def vote_result(self, instance):
-    #     a_dislike = self.request.GET.get('a_dislike')
-    #     a_like = self.request.GET.get('a_like')
-    #     if a_dislike:
-    #         instance.event_dislike = True
-    #     if a_like:
-    #         instance.event_like = True
-    #     instance.save()
+

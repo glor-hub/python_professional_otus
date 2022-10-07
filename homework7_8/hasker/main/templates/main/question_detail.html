@@ -23,6 +23,12 @@
 
         <a href="?a_like={{True}}&a_pk={{obj.pk}}" style="text-decoration: none;">+</a>
 
+        <a href="?non_favor={{True}}&a_pk={{obj.pk}}" style="text-decoration: none;">-</a>
+        {%if obj.is_favorite %}
+        *
+        {% endif %}
+        <a href="?favor={{True}}&a_pk={{obj.pk}}" style="text-decoration: none;">+</a>
+
         {{obj.body}}
     </ul>
     <br>
