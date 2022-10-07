@@ -12,18 +12,19 @@
     {% for obj in answers_list %}
     <ul>
 
-      <a href="?a_dislike={{True}}&a_pk={{obj.pk}}"style="text-decoration: none;">-</a>
+        <a href="?a_dislike={{True}}&a_pk={{obj.pk}}" style="text-decoration: none;">-</a>
 
-      rating: {{obj.rating}}
+        rating: {{obj.rating}}
 
-      <a href="?a_like={{True}}&a_pk={{obj.pk}}"style="text-decoration: none;">+</a>
+        <a href="?a_like={{True}}&a_pk={{obj.pk}}" style="text-decoration: none;">+</a>
 
-        {{obj.body}} </ul>
-     <br>
+        {{obj.body}}
+    </ul>
+    <br>
     {% endfor %}
 
 
-{% include "paginator.html" %}
+    {% include "paginator.html" %}
 
     <p>Trending</p>
     {% for obj in max_ratings_list %}
@@ -32,14 +33,13 @@
 
 </ul>
 
-<div >
-        <form method="post">
-            {% csrf_token %}
-            {{ form.as_p }}
-            <input type="submit" value="Submit!">
-        </form>
+<div>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <input type="submit" value="Submit!">
+    </form>
 </div>
-
 
 
 {% endblock %}

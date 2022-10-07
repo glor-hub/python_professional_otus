@@ -17,8 +17,20 @@ class AnswerAdmin(admin.ModelAdmin):
     list_filter = ['create_at']
     list_per_page = 5
 
+class QuestionVoteAdmin(admin.ModelAdmin):
+    list_display = ('question', 'user', 'status', 'add_like', 'add_dislike')
+    ordering = ('question', )
+    list_filter = ['user']
+    list_per_page = 5
+
+class AnswerVoteAdmin(admin.ModelAdmin):
+    list_display = ('answer', 'user', 'status', 'add_like', 'add_dislike')
+    ordering = ('answer', )
+    list_filter = ['user']
+    list_per_page = 5
+
 admin.site.register(Question, QuestionAdmin)
-admin.site.register(QuestionVote)
+admin.site.register(QuestionVote, QuestionVoteAdmin)
 admin.site.register(Answer, AnswerAdmin)
-admin.site.register(AnswerVote)
+admin.site.register(AnswerVote, AnswerVoteAdmin)
 admin.site.register(Tag)

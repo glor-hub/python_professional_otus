@@ -1,8 +1,9 @@
 from time import timezone
 
-import smtplib
-
+from django import forms
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.models import AnonymousUser
+from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.core.paginator import Paginator
 from django.db.models import F
@@ -16,7 +17,7 @@ from django.views.generic.edit import FormMixin
 
 from .forms import QuestionCreateForm, AnswerCreateForm
 from .models import Question, Answer, Tag, AnswerVote
-from hasker.settings import LOCALHOST, DEFAULT_FROM_EMAIL,USE_EMAIL_NOTIFICATION
+from hasker.settings import LOCALHOST, DEFAULT_FROM_EMAIL, USE_EMAIL_NOTIFICATION
 
 
 class QuestionListView(ListView):
@@ -82,6 +83,9 @@ class QuestionView(FormMixin, QuestionDetailView):
     form_class = AnswerCreateForm
 
     def post(self, request, *args, **kwargs):
+        if self.request.user.is_anonymous:
+            raise ValidationError(
+                'To answer to question it is necessary to register.')
         self.object = self.get_object()
         form = self.get_form()
         if form.is_valid():
@@ -93,8 +97,11 @@ class QuestionView(FormMixin, QuestionDetailView):
         instance = form.save(commit=False)
         instance.user = self.request.user
         instance.question = Question.objects.get(slug=self.kwargs['question_slug'])
-        instance.save()
-        flag_email=USE_EMAIL_NOTIFICATION
+        if not Answer.objects.filter(question=instance.question, user=instance.user):
+            instance.save()
+        else:
+            raise ValidationError("You've already answered  on this question")
+        flag_email = USE_EMAIL_NOTIFICATION
         if flag_email:
             recipients_email = []
             recipients_email.append(instance.question.author.email)
@@ -113,8 +120,8 @@ class QuestionView(FormMixin, QuestionDetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        question_slug = get_object_or_404(Question, slug=self.kwargs['question_slug'])
-        answers_list=Answer.objects.filter(question=question_slug).order_by('-rating','-create_at')
+        question = get_object_or_404(Question, slug=self.kwargs['question_slug'])
+        answers_list = Answer.objects.filter(question=question).order_by('-rating', '-create_at')
         paginator = Paginator(answers_list, per_page=30)
         page_number = self.request.GET.get('page')
         page = paginator.get_page(page_number)
@@ -123,14 +130,27 @@ class QuestionView(FormMixin, QuestionDetailView):
         a_dislike = self.request.GET.get('a_dislike')
         a_like = self.request.GET.get('a_like')
         if a_dislike or a_like:
+            if self.request.user.is_anonymous:
+                raise ValidationError(
+                    'To vote it is necessary to register.')
             answer = get_object_or_404(Answer, pk=self.request.GET.get('a_pk'))
-            answer_vote, created = AnswerVote.objects.get_or_create(user=self.request.user, answer=answer)
-            self.vote_result(answer_vote)
-            if answer_vote.add_like:
-                answer.votes_like = F('votes_like') +1
-            if answer_vote.add_dislike:
-                answer.votes_dislike = F('votes_dislike')+1
-            answer.save()
+            if answer.user == self.request.user:
+                raise ValidationError(
+                    'You cannot vote for your own answer.')
+            else:
+                answer_vote, created = AnswerVote.objects.get_or_create(user=self.request.user, answer=answer)
+                if a_dislike:
+                    answer_vote.event_dislike = True
+                if a_like:
+                    answer_vote.event_like = True
+                answer_vote.save()
+                if answer_vote.add_like:
+                    answer.votes_like = F('votes_like') + 1
+                    answer_vote.add_like = False
+                if answer_vote.add_dislike:
+                    answer.votes_dislike = F('votes_dislike') + 1
+                    answer_vote.add_dislike = False
+                answer.save()
         # add_dislike = self.request.GET.get('dislike')
         # add_like = self.request.GET.get('like')
 
@@ -148,15 +168,11 @@ class QuestionView(FormMixin, QuestionDetailView):
     # def get_vote(self,class_vote, query_obj):
     #     instanse_vote = get_object_or_404(class_vote, user=self.request.user, question=question_slug)
 
-
-
-    def vote_result(self, instance):
-        a_dislike = self.request.GET.get('a_dislike')
-        a_like = self.request.GET.get('a_like')
-        if a_dislike:
-            instance.event_dislike = True
-        if a_like:
-            instance.event_like = True
-        instance.save()
-
-
+    # def vote_result(self, instance):
+    #     a_dislike = self.request.GET.get('a_dislike')
+    #     a_like = self.request.GET.get('a_like')
+    #     if a_dislike:
+    #         instance.event_dislike = True
+    #     if a_like:
+    #         instance.event_like = True
+    #     instance.save()
