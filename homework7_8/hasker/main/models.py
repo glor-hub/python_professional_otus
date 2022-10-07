@@ -38,6 +38,8 @@ class Answer(models.Model):
 
     def save(self, *args, **kwargs):
         self.votes_total = self.votes_like - self.votes_dislike
+        if self.votes_total < 0:
+            self.votes_total = 0
         sum_votes = self.votes_like + self.votes_dislike
         if sum_votes:
             self.rating = self.votes_like * 100 / sum_votes
@@ -64,12 +66,13 @@ class Question(models.Model):
 
     def save(self, *args, **kwargs):
         self.votes_total = self.votes_like - self.votes_dislike
+        if self.votes_total < 0:
+            self.votes_total = 0
         sum_votes = self.votes_like + self.votes_dislike
         if sum_votes:
             self.rating = self.votes_like * 100 / sum_votes
         else:
             self.rating = 0
-        self.slug = slugify(self.title)
         super().save(*args, **kwargs)
 
     def get_absolute_url(self):

@@ -6,7 +6,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.core.paginator import Paginator
-from django.db.models import F
+
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 
@@ -16,7 +16,7 @@ from django.views.generic import DetailView, ListView, CreateView
 from django.views.generic.edit import FormMixin
 
 from .forms import QuestionCreateForm, AnswerCreateForm
-from .models import Question, Answer, Tag, AnswerVote
+from .models import Question, Answer, Tag, AnswerVote, QuestionVote
 from hasker.settings import LOCALHOST, DEFAULT_FROM_EMAIL, USE_EMAIL_NOTIFICATION
 
 
@@ -145,24 +145,37 @@ class QuestionView(FormMixin, QuestionDetailView):
                     answer_vote.event_like = True
                 answer_vote.save()
                 if answer_vote.add_like:
-                    answer.votes_like = F('votes_like') + 1
+                    answer.votes_like += 1
                     answer_vote.add_like = False
                 if answer_vote.add_dislike:
-                    answer.votes_dislike = F('votes_dislike') + 1
+                    answer.votes_dislike += 1
                     answer_vote.add_dislike = False
                 answer.save()
-        # add_dislike = self.request.GET.get('dislike')
-        # add_like = self.request.GET.get('like')
-
-        # self.get_vote(AnswerVote, query_obj)
-        # get_vote(AnswerVote):
-        # answer_vote=get_object_or_404(AnswerVote(user=self.request.user, question=question_slug))
-        # add_dislike=self.request.GET.get('dislike')
-        # add_like = self.request.GET.get('like')
-        # if add_dislike:
-        #     answer_vote.add_dislike=True
-        # if add_like:
-        #     answer_vote.add_like=True
+                answer_vote.save()
+        q_dislike = self.request.GET.get('q_dislike')
+        q_like = self.request.GET.get('q_like')
+        if q_dislike or q_like:
+            if self.request.user.is_anonymous:
+                raise ValidationError(
+                    'To vote it is necessary to register.')
+            if question.author == self.request.user:
+                raise ValidationError(
+                    'You cannot vote for your own answer.')
+            else:
+                question_vote, created = QuestionVote.objects.get_or_create(user=self.request.user, question=question)
+                if q_dislike:
+                    question_vote.event_dislike = True
+                if q_like:
+                    question_vote.event_like = True
+                question_vote.save()
+                if question_vote.add_like:
+                    question.votes_like += 1
+                    question_vote.add_like = False
+                if question_vote.add_dislike:
+                    question.votes_dislike += 1
+                    question_vote.add_dislike = False
+                question.save()
+                question_vote.save()
         return context
 
     # def get_vote(self,class_vote, query_obj):
