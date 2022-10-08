@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %} {{ title }}
+{% endblock %}
+{% block main_content %}
+
+<ul>
+    <li>Search result</li>
+
+    {% include "base_question.html" %}
+
+</ul>
+
+ {% include "paginator.html" with page=page_obj %}
+
+{% endblock %}

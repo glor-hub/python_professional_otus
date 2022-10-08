@@ -9,6 +9,12 @@
     <h1>
       <a href="{% url "main:index" %}">Hasker</a>
     </h1>
+
+    <form action="{% url 'main:question_search_list_view' %}">
+        <input type="search"  name="q" placeholder="Search">
+        <input type="submit"  value="Find">
+  </form>
+
 </head>
 <body>
 <ul>

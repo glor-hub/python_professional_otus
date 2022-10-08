@@ -73,6 +73,7 @@ class Question(models.Model):
             self.rating = self.votes_like * 100 / sum_votes
         else:
             self.rating = 0
+        self.slug = slugify(self.title)
         super().save(*args, **kwargs)
 
     def get_absolute_url(self):

@@ -6,6 +6,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.core.paginator import Paginator
+from django.db.models import Q
 
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
@@ -75,10 +76,6 @@ class QuestionDetailView(DetailView):
         return context
 
 
-# def get_object_or_create(AnswerVote, user, answer):
-#     pass
-
-
 class QuestionView(FormMixin, QuestionDetailView):
     form_class = AnswerCreateForm
 
@@ -101,6 +98,9 @@ class QuestionView(FormMixin, QuestionDetailView):
             instance.save()
         else:
             raise ValidationError("You've already answered  on this question")
+        if instance.question.author == self.request.user:
+            raise ValidationError(
+                'You cannot answer on your own question.')
         flag_email = USE_EMAIL_NOTIFICATION
         if flag_email:
             recipients_email = []
@@ -195,14 +195,14 @@ class QuestionView(FormMixin, QuestionDetailView):
                     'To favour the answer it is necessary to register.')
             if question.author != self.request.user:
                 raise ValidationError(
-                    'You can only favour for answer of own question only.')
+                    'You cannot favour for answer of own question.')
             else:
                 if favor:
-                    favor_answer=get_object_or_404(Answer, pk=self.request.GET.get('a_pk'))
+                    favor_answer = get_object_or_404(Answer, pk=self.request.GET.get('a_pk'))
                     print(favor_answer)
                     favor_answer.is_favorite = True
                     favor_answer.save()
-                    non_favor_answers=Answer.objects.exclude(pk=self.request.GET.get('a_pk'))
+                    non_favor_answers = Answer.objects.exclude(pk=self.request.GET.get('a_pk'))
                     non_favor_answers.update(is_favorite=False)
                 if non_favor:
                     unfavor_answer = get_object_or_404(Answer, pk=self.request.GET.get('a_pk'))
@@ -210,3 +210,17 @@ class QuestionView(FormMixin, QuestionDetailView):
                     unfavor_answer.save()
 
 
+class QuestionSearchListView(QuestionListView):
+    ordering = ('-votes_total', '-create_at')
+    template_name = 'main/search_question_list.html'
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        q = self.request.GET.get('q')
+        if q:
+            if q.startswith('tag:'):
+                qs = qs.filter(tags_string__icontains=q[4:])
+            else:
+                or_lookup = (Q(title__icontains=q) | Q(body__icontains=q))
+                qs = qs.filter(or_lookup)
+        return qs
