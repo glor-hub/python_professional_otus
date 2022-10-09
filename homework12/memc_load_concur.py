@@ -21,14 +21,18 @@ import threading
 
 WORKERS_COUNT = os.cpu_count()
 THREADS_IN_WORKER_COUNT = 5
+
 MEMC_SOCKET_TIMEOUT = 0.1
 MEMC_CONN_DELAY = 0.1
 MEMC_CONN_MAX_RETRIES = 5
 MEMC_QUEUE_SIZE = 0
 MEMC_QUEUE_TIMEOUT = 1
+MEMC_POOL_QUEUE_TIMEOUT = 0.2
+
 RESULT_QUEUE_SIZE = 0
 RESULT_QUEUE_TIMEOUT = None
 NORMAL_ERR_RATE = 0.01
+
 AppsInstalled = collections.namedtuple("AppsInstalled", ["dev_type", "dev_id", "lat", "lon", "apps"])
 
 
@@ -37,17 +41,6 @@ class MemcacheStore():
         self.conn = memcache.Client(addr, socket_timeout=MEMC_SOCKET_TIMEOUT)
         self.max_retries = max_retries
         self.delay = delay
-
-    def get(self, key):
-        num_retries = 0
-        while num_retries < self.max_retries:
-            try:
-                return self.get(key)
-            except ConnectionError:
-                self.conn()
-                num_retries += 1
-                time.sleep(self.delay)
-        return None
 
     def set(self, key, value):
         num_retries = 0
@@ -61,9 +54,10 @@ class MemcacheStore():
         return None
 
 
-class Insert_App(threading.Thread):
-    def __init__(self, memc_queue, res_queue):
+class InsertApp(threading.Thread):
+    def __init__(self, memc_pool_queue, memc_queue, res_queue):
         threading.Thread.__init__(self)
+        self._memc_pool_queue = memc_pool_queue
         self._memc_queue = memc_queue
         self._res_queue = res_queue
 
@@ -71,18 +65,18 @@ class Insert_App(threading.Thread):
         processed = errors = 0
         while True:
             try:
-                memc_addr, appsinstalled, opt_dry = self._memc_queue.get(timeout=MEMC_QUEUE_TIMEOUT)
-                ok = self.insert_appsinstalled(memc_addr, appsinstalled, opt_dry)
+                memc_pool_queue, memc_addr, appsinstalled, opt_dry = self._memc_queue.get(timeout=MEMC_QUEUE_TIMEOUT)
+                ok = self.insert_appsinstalled(memc_pool_queue, memc_addr, appsinstalled, opt_dry)
                 if ok:
                     processed += 1
                 else:
                     errors += 1
             except queue.Empty:
-                self._res_queue.put((processed, errors),timeout=RESULT_QUEUE_TIMEOUT)
+                self._res_queue.put((processed, errors), timeout=RESULT_QUEUE_TIMEOUT)
                 return
 
     @staticmethod
-    def insert_appsinstalled(memc_addr, appsinstalled, dry_run=False):
+    def insert_appsinstalled(memc_pool_queue, memc_addr, appsinstalled, dry_run=False):
         ua = appsinstalled_pb2.UserApps()
         ua.lat = appsinstalled.lat
         ua.lon = appsinstalled.lon
@@ -93,17 +87,22 @@ class Insert_App(threading.Thread):
             if dry_run:
                 logging.debug("%s - %s -> %s" % (memc_addr, key, str(ua).replace("\n", " ")))
             else:
-                memc = MemcacheStore([memc_addr], MEMC_CONN_MAX_RETRIES, MEMC_CONN_DELAY)
+                try:
+                    memc = memc_pool_queue.get(timeout=MEMC_POOL_QUEUE_TIMEOUT)
+                except queue.Empty:
+                    memc = MemcacheStore([memc_addr], MEMC_CONN_MAX_RETRIES, MEMC_CONN_DELAY)
                 memc.set(key, packed)
+                memc_pool_queue.put(memc)
         except Exception as e:
             logging.exception("Cannot write to memc %s: %s" % (memc_addr, e))
             return False
         return True
 
 
-class Parse_App(threading.Thread):
-    def __init__(self, memc_queue, res_queue, path, dev_memc, opt_dry):
+class ParseApp(threading.Thread):
+    def __init__(self, memc_pool_queue, memc_queue, res_queue, path, dev_memc, opt_dry):
         threading.Thread.__init__(self)
+        self._memc_pool_queue = memc_pool_queue
         self._memc_queue = memc_queue
         self._res_queue = res_queue
         self.path = path
@@ -127,7 +126,7 @@ class Parse_App(threading.Thread):
                     errors += 1
                     logging.error("Unknown device type: %s" % appsinstalled.dev_type)
                     continue
-                self._memc_queue.put((memc_addr, appsinstalled, self.dry))
+                self._memc_queue.put((self._memc_pool_queue[memc_addr], memc_addr, appsinstalled, self.dry))
         self._res_queue.put((processed, errors))
 
     @staticmethod
@@ -156,10 +155,10 @@ def dot_rename(path):
     os.rename(path, os.path.join(head, "." + fn))
 
 
-def run_thread_pool(memc_queue, res_queue, size):
+def run_thread_pool(memc_pool_queue, memc_queue, res_queue, size):
     threads = []
     for _ in range(size):
-        thread = Insert_App(memc_queue, res_queue)
+        thread = InsertApp(memc_pool_queue, memc_queue, res_queue)
         thread.start()
         threads.append(thread)
     return threads
@@ -173,11 +172,12 @@ def join_thread_pool(pool):
 def run_process(fn, dev_memc, opt_dry):
     pid = os.getpid()
     logging.info("Process %d running." % (pid))
+    memc_pool_queue = collections.defaultdict(queue.Queue)
     memc_queue = queue.Queue(MEMC_QUEUE_SIZE)
     res_queue = queue.Queue(RESULT_QUEUE_SIZE)
-    thread = Parse_App(memc_queue, res_queue, fn, dev_memc, opt_dry)
+    thread = ParseApp(memc_pool_queue, memc_queue, res_queue, fn, dev_memc, opt_dry)
     thread.start()
-    pool = run_thread_pool(memc_queue, res_queue, THREADS_IN_WORKER_COUNT)
+    pool = run_thread_pool(memc_pool_queue, memc_queue, res_queue, THREADS_IN_WORKER_COUNT)
     thread.join()
     join_thread_pool(pool)
     processed = errors = 0
