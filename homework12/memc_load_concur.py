@@ -28,6 +28,7 @@ MEMC_CONN_MAX_RETRIES = 5
 MEMC_QUEUE_SIZE = 0
 MEMC_QUEUE_TIMEOUT = 1
 MEMC_POOL_QUEUE_TIMEOUT = 0.2
+CHUNK_DATA_SIZE = 50
 
 RESULT_QUEUE_SIZE = 0
 RESULT_QUEUE_TIMEOUT = None
@@ -42,11 +43,11 @@ class MemcacheStore():
         self.max_retries = max_retries
         self.delay = delay
 
-    def set(self, key, value):
+    def set_multi(self, apps_packed):
         num_retries = 0
         while num_retries < self.max_retries:
             try:
-                return self.conn.set(key, value)
+                return self.conn.set_multi(apps_packed)
             except ConnectionError:
                 self.conn()
                 num_retries += 1
@@ -65,8 +66,8 @@ class InsertApp(threading.Thread):
         processed = errors = 0
         while True:
             try:
-                memc_addr, appsinstalled, opt_dry = self._memc_queue.get(timeout=MEMC_QUEUE_TIMEOUT)
-                ok = self.insert_appsinstalled(memc_addr, appsinstalled, opt_dry)
+                memc_addr, apps_packed, opt_dry = self._memc_queue.get(timeout=MEMC_QUEUE_TIMEOUT)
+                ok = self.insert_appsinstalled(memc_addr, apps_packed, opt_dry)
                 if ok:
                     processed += 1
                 else:
@@ -75,22 +76,20 @@ class InsertApp(threading.Thread):
                 self._res_queue.put((processed, errors), timeout=RESULT_QUEUE_TIMEOUT)
                 return
 
-    def insert_appsinstalled(self, memc_addr, appsinstalled, dry_run=False):
-        ua = appsinstalled_pb2.UserApps()
-        ua.lat = appsinstalled.lat
-        ua.lon = appsinstalled.lon
-        key = "%s:%s" % (appsinstalled.dev_type, appsinstalled.dev_id)
-        ua.apps.extend(appsinstalled.apps)
-        packed = ua.SerializeToString()
+    def insert_appsinstalled(self, memc_addr, apps_packed, dry_run=False):
+
         try:
             if dry_run:
-                logging.debug("%s - %s -> %s" % (memc_addr, key, str(ua).replace("\n", " ")))
+                for key in apps_packed.keys():
+                    unpacked = appsinstalled_pb2.UserApps()
+                    unpacked.ParseFromString(apps_packed[key])
+                    logging.debug("%s - %s -> %s" % (memc_addr, key,  str(unpacked).replace("\n", " ")))
             else:
                 try:
                     memc = self._memc_pool_dict[memc_addr].get(timeout=MEMC_POOL_QUEUE_TIMEOUT)
                 except queue.Empty:
                     memc = MemcacheStore([memc_addr], MEMC_CONN_MAX_RETRIES, MEMC_CONN_DELAY)
-                memc.set(key, packed)
+                memc.set_multi(apps_packed)
                 self._memc_pool_dict[memc_addr].put(memc)
         except Exception as e:
             logging.exception("Cannot write to memc %s: %s" % (memc_addr, e))
@@ -107,7 +106,20 @@ class ParseApp(threading.Thread):
         self.dev_memc = dev_memc
         self.dry = opt_dry
 
+    @staticmethod
+    def get_line_app_packed(appsinstalled):
+        ua = appsinstalled_pb2.UserApps()
+        ua.lat = appsinstalled.lat
+        ua.lon = appsinstalled.lon
+        key = "%s:%s" % (appsinstalled.dev_type, appsinstalled.dev_id)
+        ua.apps.extend(appsinstalled.apps)
+        packed = ua.SerializeToString()
+        return {key: packed}
+
     def run(self):
+        apps_packed_dict = {}
+        for dev_type in self.dev_memc.keys():
+            apps_packed_dict[dev_type] = {}
         processed = errors = 0
         logging.info('Processing %s' % self.path)
         with gzip.open(self.path) as fd:
@@ -119,12 +131,24 @@ class ParseApp(threading.Thread):
                 if not appsinstalled:
                     errors += 1
                     continue
-                memc_addr = self.dev_memc.get(appsinstalled.dev_type)
+                dev_type = appsinstalled.dev_type
+                memc_addr = self.dev_memc.get(dev_type)
                 if not memc_addr:
                     errors += 1
                     logging.error("Unknown device type: %s" % appsinstalled.dev_type)
                     continue
-                self._memc_queue.put((memc_addr, appsinstalled, self.dry))
+                apps_packed_with_key = self.get_line_app_packed(appsinstalled)
+                apps_packed_dict.get(dev_type).update(apps_packed_with_key)
+                if len(apps_packed_dict.get(dev_type)) >= CHUNK_DATA_SIZE:
+                    apps_packed = apps_packed_dict.get(dev_type)
+                    memc_addr = self.dev_memc.get(dev_type)
+                    self._memc_queue.put((memc_addr, apps_packed, self.dry))
+                    apps_packed_dict[dev_type] = {}
+        for dev_type in self.dev_memc.keys():
+            apps_packed = apps_packed_dict.get(dev_type)
+            memc_addr = self.dev_memc.get(dev_type)
+            self._memc_queue.put((memc_addr, apps_packed, self.dry))
+            apps_packed_dict[dev_type] = {}
         self._res_queue.put((processed, errors))
 
     @staticmethod
