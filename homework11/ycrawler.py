@@ -1,21 +1,22 @@
 import argparse
 import asyncio
+import logging
 import os
 from collections import namedtuple
 
 from aiohttp import ClientSession, ClientConnectionError
-from aiofile import async_open
+import aiofiles
 
 from bs4 import BeautifulSoup
 
 ROOT_URL = 'https://news.ycombinator.com/'
-CRAWLING_PERIOD = 60
+CRAWLING_PERIOD = 600
 
 YPostDetail = namedtuple('YPostDetail', ['id', 'url', 'comment_urls'])
 
 
 class URLFetcher():
-    MAX_RECONNECT_TRIES = 5
+    MAX_RECONNECT_TRIES = 3
     SUCCESS_STATUS = 200
 
     def __init__(self, session):
@@ -23,17 +24,19 @@ class URLFetcher():
 
     async def get(self, url):
         tries = 0
-        try:
-            async with self._session.get(url) as resp:
-                if resp.status != self.SUCCESS_STATUS:
-                    return None
-                else:
-                    return await resp.text()
-        except (ClientConnectionError, asyncio.TimeoutError):
-            await asyncio.sleep(0.5)
-            tries += 1
-        if tries >= self.MAX_RECONNECT_TRIES:
-            return None
+        while True:
+            try:
+                async with self._session.get(url) as resp:
+                    if resp.status != self.SUCCESS_STATUS:
+                        return None
+                    else:
+                        return await resp.read()
+            except Exception:
+                await asyncio.sleep(0.5)
+                tries += 1
+            if tries > self.MAX_RECONNECT_TRIES:
+                logging.error(f'Unable to load url: {url}')
+                return None
 
 
 class YParser():
@@ -49,13 +52,19 @@ class YParser():
 
     def get_post_detail(self, post_html):
         comm_urls = []
+        # print(f'post_html {post_html}')
         item = self.soup(post_html).find('tr', class_='athing')
+        print(f'item {item}')
         id = item.get('id')
-        links = self.soup(post_html).find_all('a')
-        if links:
-            post_url = links[0].get('href')
-            for link in links[1:]:
-                comm_urls.append(link.get('href'))
+        link = self.soup(post_html).find('span', class_="titleline").find('a')
+        print(f'link {link}')
+        post_url = link.get('href')
+        print(f'post_url {post_url}')
+        links = self.soup(post_html).select('div.comment a[rel=nofollow]')
+        # print(f'links {links}')
+        for link in links:
+            comm_urls.append(link.get('href'))
+            print(f'comm_urls: {comm_urls}')
         post_detail = YPostDetail(id=id, url=post_url, comment_urls=comm_urls)
         return post_detail
 
@@ -67,57 +76,97 @@ class YCrawler:
         self.queue = asyncio.Queue()
         self.processed_item_urls = []
         self.tasks = []
-        self.path = args.post_dir
+        self.path = args.posts_dir
         self.url_fetcher = URLFetcher(session)
         self.parser = YParser()
 
     async def run(self):
-        task = asyncio.create_task(
-            self.process_urls_forever()
-        )
-        self.tasks.append(task)
+        task1 = asyncio.create_task(self.process_urls_forever())
+        self.tasks.append(task1)
+        task2 = asyncio.create_task(self.load_post_data())
+        self.tasks.append(task2)
+        # await self.queue.join()
+        # for task in self.tasks:
+        #     task.cancel()
         await asyncio.gather(*self.tasks)
-
-    def parse(self, html):
 
     async def process_urls_forever(self):
         while True:
-            self.process_urls()
+            task = asyncio.create_task(
+                self.process_urls()
+            )
+            self.tasks.append(task)
             await asyncio.sleep(self.period)
 
     async def process_urls(self):
         root_html = await self.url_fetcher.get(ROOT_URL)
+        if not root_html:
+            return
         post_ids = self.parser.get_post_ids(root_html)
+        # print(f'post_ids: {post_ids}')
         for id in post_ids:
             item_url = self.parser.get_post_item_url(id)
-            if not item_url in self.processed_item_urls:
-                self.processed_item_urls.append(item_url)
-                post_html = await self.url_fetcher.get(item_url)
-                post_detail = get_post_detail(post_html)
-                id = post_detail.id
-                post_url = post_detail.url
-                comment_urls = post_detail.comment_urls
-                await self.queue.put((id, post_url, comment_urls))
+            if item_url in self.processed_item_urls:
+                continue
+            print(f'item_url: {item_url}')
+            self.processed_item_urls.append(item_url)
+            post_html = await self.url_fetcher.get(item_url)
+            if not post_html:
+                continue
+            post_detail = self.parser.get_post_detail(post_html)
+            print(f'post_detail: {post_detail}')
+            id = post_detail.id
+            post_url = post_detail.url
+            comment_urls = post_detail.comment_urls
+            logging.info(f'New post data with id: {id} put to queue')
+            self.queue.put_nowait((id, post_url, comment_urls))
 
     async def load_post_data(self):
-        num = 0
-        id, url, comm_urls = await self.queue.get()
-        dest_dir = f'post_{id}'
-        dest_file = f'post.html'
-        await html = self.url_fetcher.get(url)
-        await self.load_html_to_path(dest_dir, dest_file, html)
-        for url in comm_urls:
-            dest_file = f'comment_{num}.html'
-            await html = self.url_fetcher.get(url)
-            await self.load_html_to_path(dest_dir, dest_file, html)
-            num += 1
+        while True:
+            num = 0
+            id, url, comm_urls = await self.queue.get()
+            print(f'id, url, comm_urls: {id, url, comm_urls}')
+            dest_dir = f'post_{id}'
+            dest_file = f'post.html'
+            print(f'url:{url}')
+            try:
+                html = await self.url_fetcher.get(url)
+                if not html:
+                    return
+                task = asyncio.create_task(
+                    self.load_html_to_path(dest_dir, dest_file, html)
+                )
+                self.tasks.append(task)
+                logging.info(f'{url} page has been saved to {dest_dir}')
+            except Exception:
+                logging.error(f'Unable to save page: {url}')
+                return
+            for url in comm_urls:
+                dest_file = f'comment_{num}.html'
+                print(f'url:{url}')
+                try:
+                    html = await self.url_fetcher.get(url)
+                    if not html:
+                        continue
+                except Exception:
+                    logging.error(f'Unable to save page: {url}')
+                    return
+                task = asyncio.create_task(
+                    self.load_html_to_path(dest_dir, dest_file, html)
+                )
+                self.tasks.append(task)
+                logging.info(f'{url} page has been saved to {dest_dir}')
+                num += 1
 
     async def load_html_to_path(self, dest_dir, dest_file, html):
         if not os.path.exists(self.path):
             os.mkdir(self.path)
-            dest_path = os.path.join(self.path, dest_dir, dest_file)
-            async with async_open(dest_path, mode='wb') as f:
-                await f.write(html)
+        path=os.path.join(self.path, dest_dir)
+        if not os.path.exists(path):
+            os.mkdir(path)
+        dest_path = os.path.join(path, dest_file)
+        async with aiofiles.open(dest_path, mode='wb') as f:
+            await f.write(html)
 
 
 async def main():
@@ -127,12 +176,20 @@ async def main():
             session=session
         )
         await crawler.run()
+        # asyncio.run(crawler.run())
+
+def logging_init(logging_file):
+    # initialize script logging
+    logging.basicConfig(filename=logging_file,
+                        format='[%(asctime)s] %(levelname).1s %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S',
+                        level=logging.INFO)
 
 
 if __name__ == '__main__':
+    logging_init(None)
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('-p', '--period', help='Crawling period', default=60, type=int)
     arg_parser.add_argument('-d', '--posts_dir', help='Loading dir', default='./posts', type=str)
     args = arg_parser.parse_args()
-
     asyncio.run(main())
