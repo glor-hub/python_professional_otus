@@ -4,13 +4,14 @@ import logging
 import os
 from collections import namedtuple
 
-from aiohttp import ClientSession, ClientConnectionError
+import aiohttp
 import aiofiles
 
 from bs4 import BeautifulSoup
 
 ROOT_URL = 'https://news.ycombinator.com/'
-CRAWLING_PERIOD = 600
+CRAWLING_PERIOD = 20
+CONCUR_LIMIT = 7
 
 YPostDetail = namedtuple('YPostDetail', ['id', 'url', 'comment_urls'])
 
@@ -28,6 +29,7 @@ class URLFetcher():
             try:
                 async with self._session.get(url) as resp:
                     if resp.status != self.SUCCESS_STATUS:
+                        print(f'status ={resp.status}, url: {url}')
                         return None
                     else:
                         return await resp.read()
@@ -37,7 +39,9 @@ class URLFetcher():
             if tries > self.MAX_RECONNECT_TRIES:
                 logging.error(f'Unable to load url: {url}')
                 return None
-
+    async def get_with_lock(self, semaphore, url):
+        async with semaphore:
+            return await self.get(url)
 
 class YParser():
     def soup(self, html):
@@ -64,7 +68,7 @@ class YParser():
         # print(f'links {links}')
         for link in links:
             comm_urls.append(link.get('href'))
-            print(f'comm_urls: {comm_urls}')
+        print(f'comm_urls: {comm_urls}')
         post_detail = YPostDetail(id=id, url=post_url, comment_urls=comm_urls)
         return post_detail
 
@@ -79,28 +83,32 @@ class YCrawler:
         self.path = args.posts_dir
         self.url_fetcher = URLFetcher(session)
         self.parser = YParser()
+        self.semaphore = asyncio.Semaphore(value=CONCUR_LIMIT)
 
     async def run(self):
-        task1 = asyncio.create_task(self.process_urls_forever())
+        task1 = asyncio.create_task(self.parse_urls_forever())
         self.tasks.append(task1)
-        task2 = asyncio.create_task(self.load_post_data())
+
+        task2 = asyncio.create_task(self.process_urls_forever())
         self.tasks.append(task2)
         # await self.queue.join()
         # for task in self.tasks:
         #     task.cancel()
         await asyncio.gather(*self.tasks)
+        print('************** tasks',self.tasks)
 
-    async def process_urls_forever(self):
+    async def parse_urls_forever(self):
         while True:
             task = asyncio.create_task(
-                self.process_urls()
+                self.parse_urls()
             )
             self.tasks.append(task)
             await asyncio.sleep(self.period)
 
-    async def process_urls(self):
-        root_html = await self.url_fetcher.get(ROOT_URL)
+    async def parse_urls(self):
+        root_html = await self.url_fetcher.get_with_lock(self.semaphore, ROOT_URL)
         if not root_html:
+            print('event: if not root_html, str.110')
             return
         post_ids = self.parser.get_post_ids(root_html)
         # print(f'post_ids: {post_ids}')
@@ -121,42 +129,53 @@ class YCrawler:
             logging.info(f'New post data with id: {id} put to queue')
             self.queue.put_nowait((id, post_url, comment_urls))
 
-    async def load_post_data(self):
+    async def process_urls_forever(self):
         while True:
-            num = 0
             id, url, comm_urls = await self.queue.get()
+            print(f'post with id {id} got from queue')
             print(f'id, url, comm_urls: {id, url, comm_urls}')
             dest_dir = f'post_{id}'
             dest_file = f'post.html'
             print(f'url:{url}')
+            task = asyncio.create_task(
+                self.load_urls_data(dest_dir, dest_file)
+            )
+            self.tasks.append(task)
+
+    async def load_urls_data(self,dest_dir, dest_file):
+        num = 0
+        try:
+            html = await self.url_fetcher.get(url)
+            if not html:
+                print('event: if not post_html, str.142')
+                print(f"tasks: {self.tasks}")
+                return
+            task = asyncio.create_task(
+                self.load_html_to_path(dest_dir, dest_file, html)
+            )
+            self.tasks.append(task)
+            logging.info(f'{url} post_page saved to {dest_dir}')
+        except Exception:
+            logging.error(f'Unable to save page: {url}')
+            return
+        for url in comm_urls:
+            dest_file = f'comment_{num}.html'
+            print(f'comm_url:{url}')
             try:
                 html = await self.url_fetcher.get(url)
                 if not html:
-                    return
+                    print('event: if not comm_html, str.158')
+                    continue
                 task = asyncio.create_task(
                     self.load_html_to_path(dest_dir, dest_file, html)
                 )
                 self.tasks.append(task)
-                logging.info(f'{url} page has been saved to {dest_dir}')
-            except Exception:
-                logging.error(f'Unable to save page: {url}')
-                return
-            for url in comm_urls:
-                dest_file = f'comment_{num}.html'
-                print(f'url:{url}')
-                try:
-                    html = await self.url_fetcher.get(url)
-                    if not html:
-                        continue
-                except Exception:
-                    logging.error(f'Unable to save page: {url}')
-                    return
-                task = asyncio.create_task(
-                    self.load_html_to_path(dest_dir, dest_file, html)
-                )
-                self.tasks.append(task)
-                logging.info(f'{url} page has been saved to {dest_dir}')
+                logging.info(f'{url} comm_page saved to {dest_dir}')
                 num += 1
+            except Exception:
+                logging.error(f'Unable to save comm_page: {url}')
+                return
+
 
     async def load_html_to_path(self, dest_dir, dest_file, html):
         if not os.path.exists(self.path):
@@ -170,7 +189,11 @@ class YCrawler:
 
 
 async def main():
-    async with ClientSession() as session:
+    connector = aiohttp.TCPConnector(ssl=False)
+    async with aiohttp.ClientSession(
+            connector=connector,
+            timeout=aiohttp.ClientTimeout(total=3)
+    ) as session:
         crawler = YCrawler(
             period=CRAWLING_PERIOD,
             session=session
