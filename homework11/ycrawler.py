@@ -10,8 +10,8 @@ import aiofiles
 from bs4 import BeautifulSoup
 
 ROOT_URL = 'https://news.ycombinator.com/'
-CRAWLING_PERIOD = 20
-CONCUR_LIMIT = 7
+CRAWLING_PERIOD = 100
+CONCUR_LIMIT = 5
 
 YPostDetail = namedtuple('YPostDetail', ['id', 'url', 'comment_urls'])
 
@@ -58,17 +58,17 @@ class YParser():
         comm_urls = []
         # print(f'post_html {post_html}')
         item = self.soup(post_html).find('tr', class_='athing')
-        print(f'item {item}')
+        # print(f'item {item}')
         id = item.get('id')
         link = self.soup(post_html).find('span', class_="titleline").find('a')
-        print(f'link {link}')
+        # print(f'link {link}')
         post_url = link.get('href')
         print(f'post_url {post_url}')
         links = self.soup(post_html).select('div.comment a[rel=nofollow]')
         # print(f'links {links}')
         for link in links:
             comm_urls.append(link.get('href'))
-        print(f'comm_urls: {comm_urls}')
+        # print(f'comm_urls: {comm_urls}')
         post_detail = YPostDetail(id=id, url=post_url, comment_urls=comm_urls)
         return post_detail
 
@@ -95,7 +95,6 @@ class YCrawler:
         # for task in self.tasks:
         #     task.cancel()
         await asyncio.gather(*self.tasks)
-        print('************** tasks',self.tasks)
 
     async def parse_urls_forever(self):
         while True:
@@ -111,16 +110,16 @@ class YCrawler:
             print('event: if not root_html, str.110')
             return
         post_ids = self.parser.get_post_ids(root_html)
-        # print(f'post_ids: {post_ids}')
+        print(f'post_ids: {post_ids}')
         for id in post_ids:
             item_url = self.parser.get_post_item_url(id)
             if item_url in self.processed_item_urls:
-                continue
-            print(f'item_url: {item_url}')
+                return
+            # print(f'item_url: {item_url}')
             self.processed_item_urls.append(item_url)
             post_html = await self.url_fetcher.get(item_url)
             if not post_html:
-                continue
+                return
             post_detail = self.parser.get_post_detail(post_html)
             print(f'post_detail: {post_detail}')
             id = post_detail.id
@@ -132,46 +131,46 @@ class YCrawler:
     async def process_urls_forever(self):
         while True:
             id, url, comm_urls = await self.queue.get()
+            post_detail=YPostDetail(id=id, url=url, comment_urls=comm_urls)
             print(f'post with id {id} got from queue')
-            print(f'id, url, comm_urls: {id, url, comm_urls}')
-            dest_dir = f'post_{id}'
-            dest_file = f'post.html'
-            print(f'url:{url}')
+            # print(f'id, url, comm_urls: {id, url, comm_urls}')
+            # print(f'url:{url}')
             task = asyncio.create_task(
-                self.load_urls_data(dest_dir, dest_file)
+                self.load_urls_data(post_detail)
             )
             self.tasks.append(task)
 
-    async def load_urls_data(self,dest_dir, dest_file):
+    async def load_urls_data(self,post_detail):
         num = 0
+        dest_dir = f'post_{post_detail.id}'
+        dest_file = f'post.html'
         try:
-            html = await self.url_fetcher.get(url)
+            html = await self.url_fetcher.get(post_detail.url)
             if not html:
                 print('event: if not post_html, str.142')
-                print(f"tasks: {self.tasks}")
+                # print(f"tasks: {self.tasks}")
                 return
             task = asyncio.create_task(
                 self.load_html_to_path(dest_dir, dest_file, html)
             )
             self.tasks.append(task)
-            logging.info(f'{url} post_page saved to {dest_dir}')
+            logging.info(f'{post_detail.url} post_page saved to {dest_dir}')
         except Exception:
-            logging.error(f'Unable to save page: {url}')
-            return
-        for url in comm_urls:
+            logging.error(f'Unable to save page: {post_detail.url}')
+        for url in post_detail.comment_urls:
             dest_file = f'comment_{num}.html'
-            print(f'comm_url:{url}')
+            # print(f'comm_url:{url}')
             try:
                 html = await self.url_fetcher.get(url)
-                if not html:
-                    print('event: if not comm_html, str.158')
-                    continue
-                task = asyncio.create_task(
-                    self.load_html_to_path(dest_dir, dest_file, html)
-                )
-                self.tasks.append(task)
-                logging.info(f'{url} comm_page saved to {dest_dir}')
-                num += 1
+                if html:
+                    # print('event: if not comm_html, str.158')
+                    # return
+                    task = asyncio.create_task(
+                        self.load_html_to_path(dest_dir, dest_file, html)
+                    )
+                    self.tasks.append(task)
+                    logging.info(f'{url} comm_page saved to {dest_dir}')
+                    num += 1
             except Exception:
                 logging.error(f'Unable to save comm_page: {url}')
                 return
