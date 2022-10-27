@@ -177,7 +177,7 @@ async def main():
             timeout=aiohttp.ClientTimeout(total=10)
     ) as session:
         crawler = YCrawler(
-            period=CRAWLING_PERIOD,
+            period=args.period,
             session=session
         )
         await crawler.run()
@@ -194,7 +194,7 @@ def logging_init(logging_file):
 if __name__ == '__main__':
     logging_init(None)
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument('-p', '--period', help='Crawling period', default=60, type=int)
+    arg_parser.add_argument('-p', '--period', help='Crawling period', default=CRAWLING_PERIOD, type=int)
     arg_parser.add_argument('-d', '--posts_dir', help='Loading dir', default='./posts', type=str)
     args = arg_parser.parse_args()
     asyncio.run(main())
