@@ -16,7 +16,7 @@ CONCUR_LIMIT = 5
 YPostDetail = namedtuple('YPostDetail', ['id', 'url', 'comment_urls'])
 
 
-class URLFetcher():
+class URLFetcher:
     MAX_RECONNECT_TRIES = 7
     INTERVAL_RETRIES = 1
     SUCCESS_STATUS = 200
@@ -48,7 +48,7 @@ class URLFetcher():
             return await self.get(url)
 
 
-class YParser():
+class YParser:
     def soup(self, html):
         return BeautifulSoup(html, 'html.parser')
 
