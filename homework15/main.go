@@ -4,7 +4,10 @@ import (
 	"flag"
 	"log"
 	"os"
+	"path/filepath"
 )
+
+const gorutNumber = 10
 
 type options struct {
 	logFile string
@@ -16,8 +19,24 @@ type options struct {
 	dvid    string
 }
 
-func main() {
+func process_file(path string, dev_memc)
 
+func run_process(opts *options) error {
+	deviceMemc := map[string]string{
+		"idfa": opts.idfa,
+		"gaid": opts.gaid,
+		"adid": opts.adid,
+		"dvid": opts.dvid,
+	}
+	path_list, err := filepath.Glob(opts.pattern)
+	for i:=0; i<gorutNumber:i++{
+		go process_file(path_list)
+	}
+
+	return
+}
+
+func main() {
 	logFile := flag.String("log", "log.txt", "log")
 	dry := flag.Bool("dry", false, "dry")
 	pattern := flag.String("pattern", "data/*.tsv.gz", "Directory to search the files")
@@ -28,7 +47,7 @@ func main() {
 
 	flag.Parse()
 
-	opts := options{
+	opts := &options{
 		logFile: *logFile,
 		dry:     *dry,
 		pattern: *pattern,
@@ -43,9 +62,17 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.SetOutput(f)
+		//log.SetOutput(f)
 
 		defer f.Close()
 		log.Println(f.Name())
 	}
+	log.Println("INFO: Memc loader started with options:", opts)
+
+	err := run_process(opts)
+	if err != nil {
+		log.Fatalf("Unexpected error: ", err)
+		return
+	}
 }
+
