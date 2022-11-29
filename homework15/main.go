@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"compress/gzip"
 	"flag"
+	"fmt"
 	"github.com/bradfitz/gomemcache/memcache"
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -23,15 +25,125 @@ type options struct {
 	dvid     string
 }
 
+type appsInstalled struct {
+	devType string
+	devId   string
+	lat     float32
+	lon     float32
+	apps    []uint32
+}
+
 type results struct {
 	errors    int
 	processed int
+}
+
+type memcacheItem struct {
+	key  string
+	data []byte
+}
+
+func parseAppsInstalled(line string) (*appsInstalled, error) {
+	lineParts := strings.Split(line, "\t")
+	if len(lineParts) < 5 {
+		log.Printf("ERROR: Not all parts was found in line")
+		return nil, nil
+	}
+	devType := lineParts[0]
+	devId := lineParts[1]
+	if devType == "" || devId == "" {
+		log.Printf("ERROR: devType or devId was not found")
+		return nil, nil
+	}
+
+	lat, err := strconv.ParseFloat(lineParts[2], 32)
+	if err != nil {
+		return nil, err
+	}
+
+	lon, err := strconv.ParseFloat(lineParts[3], 32)
+	if err != nil {
+		return nil, err
+	}
+	raw_apps := lineParts[4]
+	apps := make([]uint32, 0)
+	for _, app := range strings.Split(raw_apps, ",") {
+		app_id, err := strconv.Atoi(app)
+		if err != nil {
+			return nil, err
+		}
+		apps = append(apps, uint32(app_id))
+	}
+
+	return &appsInstalled{
+		devType: devType,
+		devId:   devId,
+		lat:     lat,
+		lon:     lon,
+		apps:    apps,
+	}, nil
+}
+
+func packedAppsInstalled(appsInstalled *AppsInstalled) (*memcacheItem, error) {
+	ua := &appsinstalled.UserApps{
+		Lat:  proto.Float32(appsInstalled.lat),
+		Lon:  proto.Float32(appsInstalled.lon),
+		Apps: appsInstalled.apps,
+	}
+	key := fmt.Sprintf("%s:%s", appsInstalled.devType, appsInstalled.devId)
+	packed, err := proto.Marshal(ua)
+	if err != nil {
+		// TODO: Log error
+		return nil, err
+	}
+	return &MemcacheItem{key, packed}, nil
+}
+
+func memcacheStore(mcClient *memcache.Client, ItemsChan chan *memcacheItem, resultsChan chan results) {
+	processed := 0
+	errors := 0
+	for item := range ItemsChan {
+		err := mcClient.Set(&memcache.Item{
+			Key:   item.key,
+			Value: item.data,
+		})
+		if err != nil {
+			errors += 1
+		} else {
+			processed += 1
+		}
+	}
+	resultsChan <- results{errors, processed}
 }
 
 func dotRename(filepath string) {
 	head, filename = filepath.Split(filepath)
 	newfilename = filepath.Join(head, '.', filename)
 	os.Rename(filename, newfilename)
+}
+
+func parserLine(linesChan chan string, memcacheChans map[string]chan *MemcacheItem, resChan chan results) {
+	errors := 0
+	for line := range linesChan {
+		appsInstalled, err := parseAppsInstalled(line)
+		if err != nil {
+			errors += 1
+			continue
+		}
+		item, err := packedAppsInstalled(appsInstalled)
+		if err != nil {
+			errors += 1
+			continue
+		}
+		queue, opened := memcacheChans[appsInstalled.devType]
+		if !opened {
+			log.Println("ERROR: Unknown device type:", appsInstalled.devType)
+			errors += 1
+			continue
+		}
+		queue <- item
+	}
+	resChan <- results{errors: errors}
 }
 
 func readFile(filepath string, linesChan chan string) error {
@@ -87,16 +199,15 @@ func runProcess(opts *options) error {
 
 	resultsChan := make(chan results)
 
-	for i := 0; i <= opts.nworkers; i++ {
-		go parserLine(linesChan, memcacheChans, resChan)
-	}
-
 	memcacheChans := make(map[string]chan *MemcacheItem)
 
 	for devType, memcAddr := range deviceMemc {
 		memcacheChans[devType] = make(chan *MemcacheItem, opts.bufsize)
 		mcache := memcache.New(memcAddr)
-		go MemcacheWorker(mcache, memcacheChans[devType], resultsChan)
+		go memcacheStore(mcache, memcacheChans[devType], resultsChan)
+	}
+	for i := 0; i <= opts.nworkers; i++ {
+		go parserLine(linesChan, memcacheChans, resChan)
 	}
 
 	main()
