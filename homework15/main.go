@@ -19,21 +19,26 @@ type options struct {
 	dvid    string
 }
 
-func process_file(path string, dev_memc)
+func processFile(path chan string, dev_memc map[string]string, dry bool) {}
 
-func run_process(opts *options) error {
+func runProcess(opts *options) error {
 	deviceMemc := map[string]string{
 		"idfa": opts.idfa,
 		"gaid": opts.gaid,
 		"adid": opts.adid,
 		"dvid": opts.dvid,
 	}
-	path_list, err := filepath.Glob(opts.pattern)
-	for i:=0; i<gorutNumber:i++{
-		go process_file(path_list)
+	pathList, err := filepath.Glob(opts.pattern)
+	for i := 0; i < gorutNumber; i++ {
+		go processFile(path <- pathChan, deviceMemc, opts.dry)
 	}
-
-	return
+	go func() {
+		pathChan := make(chan string)
+		for _, path = range pathList {
+			pathChan <- path
+		}
+	}()
+	return err
 }
 
 func main() {
@@ -69,10 +74,9 @@ func main() {
 	}
 	log.Println("INFO: Memc loader started with options:", opts)
 
-	err := run_process(opts)
+	err := runProcess(opts)
 	if err != nil {
 		log.Fatalf("Unexpected error: ", err)
 		return
 	}
 }
-
