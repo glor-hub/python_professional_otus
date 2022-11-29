@@ -28,6 +28,12 @@ type results struct {
 	processed int
 }
 
+func dotRename(filepath string) {
+	head, filename = filepath.Split(filepath)
+	newfilename = filepath.Join(head, '.', filename)
+	os.Rename(filename, newfilename)
+}
+
 func readFile(filepath string, linesChan chan string) error {
 	log.Println("INFO: Start processing file:", filepath)
 	file, err := os.Open(filepath)
