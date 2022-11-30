@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"compress/gzip"
-	"flag"
 	"fmt"
 	"github.com/bradfitz/gomemcache/memcache"
 	"log"
@@ -43,36 +42,39 @@ type memcacheItem struct {
 	data []byte
 }
 
-func parseAppsInstalled(line string) (*appsInstalled, error) {
+func parseAppsInstalled(line string) *appsInstalled {
 	lineParts := strings.Split(line, "\t")
 	if len(lineParts) < 5 {
-		log.Printf("ERROR: Not all parts was found in line")
-		return nil, nil
+		log.Printf("ERROR: Not all parts was found in line: %s", line)
+		return nil
 	}
 	devType := lineParts[0]
 	devId := lineParts[1]
 	if devType == "" || devId == "" {
-		log.Printf("ERROR: devType or devId was not found")
-		return nil, nil
+		log.Printf("ERROR: devType or devId was not found in line: %s", line)
+		return nil
 	}
 
 	lat, err := strconv.ParseFloat(lineParts[2], 32)
 	if err != nil {
-		return nil, err
+		log.Printf("ERROR: Invalid geo coord lat in line: %s", line)
+		return nil
 	}
 
 	lon, err := strconv.ParseFloat(lineParts[3], 32)
 	if err != nil {
-		return nil, err
+		log.Printf("ERROR: Invalid geo coord lon in line: %s", line)
+		return nil
 	}
-	raw_apps := lineParts[4]
+	rawApps := lineParts[4]
 	apps := make([]uint32, 0)
-	for _, app := range strings.Split(raw_apps, ",") {
-		app_id, err := strconv.Atoi(app)
+	for _, app := range strings.Split(rawApps, ",") {
+		appId, err := strconv.Atoi(app)
 		if err != nil {
-			return nil, err
+			log.Printf("ERROR: Not all user apps are digits: in line: %s", line)
+			return nil
 		}
-		apps = append(apps, uint32(app_id))
+		apps = append(apps, uint32(appId))
 	}
 
 	return &appsInstalled{
@@ -81,7 +83,7 @@ func parseAppsInstalled(line string) (*appsInstalled, error) {
 		lat:     lat,
 		lon:     lon,
 		apps:    apps,
-	}, nil
+	}
 }
 
 func packedAppsInstalled(appsInstalled *AppsInstalled) (*memcacheItem, error) {
@@ -96,7 +98,7 @@ func packedAppsInstalled(appsInstalled *AppsInstalled) (*memcacheItem, error) {
 		// TODO: Log error
 		return nil, err
 	}
-	return &MemcacheItem{key, packed}, nil
+	return &memcacheItem{key, packed}, nil
 }
 
 func memcacheStore(mcClient *memcache.Client, ItemsChan chan *memcacheItem, resultsChan chan results) {
@@ -122,11 +124,11 @@ func dotRename(filepath string) {
 	os.Rename(filename, newfilename)
 }
 
-func parserLine(linesChan chan string, memcacheChans map[string]chan *MemcacheItem, resChan chan results) {
+func processLine(linesChan chan string, memcacheChans map[string]chan *memcacheItem, resChan chan results) {
 	errors := 0
 	for line := range linesChan {
-		appsInstalled, err := parseAppsInstalled(line)
-		if err != nil {
+		appsInstalled := parseAppsInstalled(line)
+		if appsInstalled == nil {
 			errors += 1
 			continue
 		}
@@ -135,15 +137,15 @@ func parserLine(linesChan chan string, memcacheChans map[string]chan *MemcacheIt
 			errors += 1
 			continue
 		}
-		queue, opened := memcacheChans[appsInstalled.devType]
+		mcChan, opened := memcacheChans[appsInstalled.devType]
 		if !opened {
 			log.Println("ERROR: Unknown device type:", appsInstalled.devType)
 			errors += 1
 			continue
 		}
-		queue <- item
+		mcChan <- item
 	}
-	resChan <- results{errors: errors}
+	resChan <- results{errors: errors, processed: 0}
 }
 
 func readFile(filepath string, linesChan chan string) error {
@@ -174,6 +176,7 @@ func readFile(filepath string, linesChan chan string) error {
 	}
 	if err := fileScanner.Err(); err != nil {
 		log.Printf("ERROR: Error while reading file: %s", err)
+		return err
 	}
 	return nil
 }
@@ -192,66 +195,89 @@ func runProcess(opts *options) error {
 	}
 	linesChan := make(chan string, opts.chanBuf)
 	for _, file := range files {
-		readFile(file, linesChan)
+		err := readFile(file, linesChan)
+		if err != nil {
+			continue
+		}
 		dotRename(file)
 	}
-	close(linesChan)
 
 	resultsChan := make(chan results)
 
-	memcacheChans := make(map[string]chan *MemcacheItem)
+	memcacheChans := make(map[string]chan *memcacheItem)
+
+	var wgMemc sync.WaitGroup
+	wgMemc.Add(len(deviceMemc))
+
+	Println(len(deviceMemc))
 
 	for devType, memcAddr := range deviceMemc {
-		memcacheChans[devType] = make(chan *MemcacheItem, opts.bufsize)
+		memcacheChans[devType] = make(chan *memcacheItem, opts.bufsize)
 		mcache := memcache.New(memcAddr)
 		go memcacheStore(mcache, memcacheChans[devType], resultsChan)
 	}
-	for i := 0; i <= opts.nworkers; i++ {
-		go parserLine(linesChan, memcacheChans, resChan)
+	var wgProc sync.WaitGroup
+	wgProc.Add(len(deviceMemc))
+
+	for i := 0; i < opts.nworkers; i++ {
+		go processLine(linesChan, memcacheChans, resultsChan)
+	}
+	wgProc.Wait()
+	wgMemc.Wait()
+
+	close(linesChan)
+	close(memcacheChans)
+	close(resultsChan)
+
+	processed:=0
+	errors:=0
+	for results := range resultsChan {
+		processed+=results.processed
+		errors+=results.errors
+	}
+	return nil
+}
+
+func main() {
+	chanBuf := flag.Int("bufsize", 5, "bufsize")
+	nworkers := flag.Int("nworkers", 5, "nworkers")
+	logFile := flag.String("log", "log.txt", "log")
+	dry := flag.Bool("dry", false, "dry")
+	pattern := flag.String("pattern", "data/*.tsv.gz", "Directory to search the files")
+	idfa := flag.String("idfa", "127.0.0.1:33013", "memcached address for idfa")
+	gaid := flag.String("gaid", "127.0.0.1:33014", "memcached address for gaid")
+	adid := flag.String("adid", "127.0.0.1:33015", "memcached address for adid")
+	dvid := flag.String("dvid", "127.0.0.1:33016", "memcached address for dvid")
+
+	flag.Parse()
+
+	opts := &options{
+		chanBuf:  *chanBuf,
+		nworkers: *nworkers,
+		logFile:  *logFile,
+		dry:      *dry,
+		pattern:  *pattern,
+		idfa:     *idfa,
+		gaid:     *gaid,
+		adid:     *adid,
+		dvid:     *dvid,
 	}
 
-	main()
-	{
-		chanBuf := flag.Int("bufsize", 5, "bufsize")
-		nworkers := flag.Int("workers", 5, "workers")
-		logFile := flag.String("log", "log.txt", "log")
-		dry := flag.Bool("dry", false, "dry")
-		pattern := flag.String("pattern", "data/*.tsv.gz", "Directory to search the files")
-		idfa := flag.String("idfa", "127.0.0.1:33013", "memcached address for idfa")
-		gaid := flag.String("gaid", "127.0.0.1:33014", "memcached address for gaid")
-		adid := flag.String("adid", "127.0.0.1:33015", "memcached address for adid")
-		dvid := flag.String("dvid", "127.0.0.1:33016", "memcached address for dvid")
-
-		flag.Parse()
-
-		opts := &options{
-			chanBuf:  *chanBuf,
-			nworkers: *nworkers,
-			logFile:  *logFile,
-			dry:      *dry,
-			pattern:  *pattern,
-			idfa:     *idfa,
-			gaid:     *gaid,
-			adid:     *adid,
-			dvid:     *dvid,
-		}
-
-		if opts.logFile != "" {
-			f, err := os.OpenFile(opts.logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if err != nil {
-				log.Fatal(err)
-			}
-			//log.SetOutput(f)
-
-			defer f.Close()
-			log.Println(f.Name())
-		}
-		log.Println("INFO: Memc loader started with options:", opts)
-
-		err := runProcess(opts)
+	if opts.logFile != "" {
+		f, err := os.OpenFile(opts.logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			log.Fatalf("Unexpected error: ", err)
-			return
+			log.Fatal(err)
 		}
+		//log.SetOutput(f)
+
+		defer f.Close()
+		log.Println(f.Name())
+	}
+	log.Println("INFO: Memcache loader started with options: %s", opts)
+
+	err := runProcess(opts)
+	if err != nil {
+		log.Fatalf("Unexpected error: ", err)
+		return
 	}
 }
