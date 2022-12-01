@@ -136,11 +136,10 @@ func dotRename(path string) error {
 	return nil
 }
 
-func processLine(linesChan chan string, memcacheChans map[string]chan *memcacheItem, resChan chan results, wg *sync.WaitGroup) {
-	defer wg.Done()
+func processLine(linesChan chan string, memcacheChans map[string]chan *memcacheItem, resChan chan results) {
+	//defer wg.Done()
 	errors := 0
 	for line := range linesChan {
-		log.Printf("INFO:Line: %s", line)
 		appsInstalled := parseAppsInstalled(line)
 		if appsInstalled == nil {
 			errors += 1
@@ -158,7 +157,6 @@ func processLine(linesChan chan string, memcacheChans map[string]chan *memcacheI
 			continue
 		}
 		mcChan <- item
-		log.Println("INFO: item in channel", item)
 	}
 	resChan <- results{errors: errors, processed: 0}
 }
@@ -185,17 +183,14 @@ func readFile(filepath string, linesChan chan string) error {
 		line := fileScanner.Text()
 		line = strings.Trim(line, " ")
 		if line == "" {
-			log.Println("INFO:continue9 ")
 			continue
 		}
-		log.Println("INFO:Line: %s", line)
 		linesChan <- line
 	}
 	if err := fileScanner.Err(); err != nil {
 		log.Printf("ERROR: Error while reading file: %s", err)
 		return err
 	}
-	log.Println("INFO:read all")
 	return nil
 }
 
@@ -207,71 +202,42 @@ func runProcess(opts *options) error {
 		"dvid": opts.dvid,
 	}
 	linesChan := make(chan string, opts.chanBuf)
-	resultsMcChan := make(chan results)
-	resultsProcChan := make(chan results)
-	memcacheChans := make(map[string]chan *memcacheItem)
-	var wgMemc sync.WaitGroup
+	resultsMcChan := make(chan results, opts.chanBuf)
+	resultsProcChan := make(chan results, opts.chanBuf)
+	memcacheChans := make(map[string]chan *memcacheItem, opts.chanBuf)
 
-	log.Println(len(deviceMemc))
+	var wg sync.WaitGroup
 
 	for devType, memcAddr := range deviceMemc {
 		memcacheChans[devType] = make(chan *memcacheItem, opts.chanBuf)
-		mcClient := memcache.New(memcAddr)
-		log.Println("INFO:go memcache channel for memcAddr %s", memcAddr)
-		wgMemc.Add(1)
-		go memcacheStore(mcClient, memcacheChans[devType], resultsMcChan, &wgMemc)
+		mc := memcache.New(memcAddr)
+		wg.Add(1)
+		go memcacheStore(mc, memcacheChans[devType], resultsMcChan, &wg)
 	}
-	var wgProc sync.WaitGroup
 
-	log.Println("INFO:going go processLine", opts.nworkers)
 	for i := 0; i < opts.nworkers; i++ {
-		log.Println("INFO:go processLine number", i)
-		wgProc.Add(1)
-		go processLine(linesChan, memcacheChans, resultsProcChan, &wgProc)
+		go processLine(linesChan, memcacheChans, resultsProcChan)
 	}
-
-	//log.Println("INFO:1")
 	files, err := filepath.Glob(opts.pattern)
-	//log.Println("INFO:2")
 	if err != nil {
 		log.Println("ERROR: Could not find files in directory %s", opts.pattern)
 		return err
 	}
-	//log.Println("INFO:opts.chanBuf %s", opts.chanBuf)
 	for _, file := range files {
-		log.Println("INFO:3")
 		err := readFile(file, linesChan)
 		if err != nil {
 			continue
 		}
-		//readFile(file, linesChan)
-		log.Println("INFO:File %s is processed", file)
+		log.Println("INFO:File %s was processed", file)
 		dotRename(file)
 	}
-
-	go func() {
-		log.Println("INFO:waiting for the completion of processLine() goroutines group ")
-		wgProc.Wait()
-		log.Println("INFO:processLine() goroutines group is completed")
-		close(linesChan)
-		close(resultsProcChan)
-
-	}()
-	//wgProc.Wait()
-
-	go func() {
-		log.Println("INFO:waiting for the completion of memcacheStore goroutines group ")
-		wgMemc.Wait()
-		log.Println("INFO:processLine() memcacheStore goroutines group is completed")
-		for _, mcChan := range memcacheChans {
-			close(mcChan)
-		}
-		close(resultsMcChan)
-	}()
-	//wgMemc.Wait()
-
-	//close(linesChan)
-	log.Println("INFO:Closed all chans")
+	log.Println("INFO:waiting for the completion of goroutines group ")
+	wg.Wait()
+	for _, mcChan := range memcacheChans {
+		close(mcChan)
+	}
+	log.Println("INFO: goroutines group is completed")
+	close(linesChan)
 	processed := 0
 	errors := 0
 	for results := range resultsMcChan {
@@ -282,6 +248,10 @@ func runProcess(opts *options) error {
 		processed += results.processed
 		errors += results.errors
 	}
+	close(resultsProcChan)
+	close(resultsMcChan)
+	log.Println("INFO:Closed all chans")
+
 	errRate := float32(errors) / float32(processed)
 	if errRate < NORMAL_ERR_RATE {
 		log.Printf("Acceptable error rate (%g). Successfull load\n", errRate)
@@ -293,7 +263,7 @@ func runProcess(opts *options) error {
 
 func main() {
 	chanBuf := flag.Int("bufsize", 1, "bufsize")
-	nworkers := flag.Int("nworkers", 5, "nworkers")
+	nworkers := flag.Int("nworkers", 1, "nworkers")
 	logFile := flag.String("log", "log.txt", "log")
 	dry := flag.Bool("dry", false, "dry")
 	pattern := flag.String("pattern", "data/*.tsv.gz", "Directory to search the files")
