@@ -107,9 +107,9 @@ func packedAppsInstalled(appsInstalled *appsInstalled) (*memcacheItem, error) {
 }
 
 func memcacheStore(mcClient *memcache.Client, ItemsChan chan *memcacheItem, resultsChan chan results, wg *sync.WaitGroup) {
+	defer wg.Done()
 	processed := 0
 	errors := 0
-	defer wg.Done()
 	for item := range ItemsChan {
 		err := mcClient.Set(&memcache.Item{
 			Key:   item.key,
@@ -124,21 +124,21 @@ func memcacheStore(mcClient *memcache.Client, ItemsChan chan *memcacheItem, resu
 	resultsChan <- results{errors, processed}
 }
 
-//func dotRename(file string) {
-//	head, filename := filepath.Split(file)
-//	newfilename := filepath.Join(head, ".", filename)
-//	os.Rename(filename, newfilename)
-//}
-
-func dotRename(path string) error {
-	head := filepath.Dir(path)
-	fn := filepath.Base(path)
-	if err := os.Rename(path, filepath.Join(head, "."+fn)); err != nil {
-		log.Printf("Can't rename a file: %s", path)
-		return err
-	}
-	return nil
+func dotRename(file string) {
+	head, filename := filepath.Split(file)
+	newfilename := filepath.Join(head, ".", filename)
+	os.Rename(filename, newfilename)
 }
+
+//func dotRename(path string) error {
+//	head := filepath.Dir(path)
+//	fn := filepath.Base(path)
+//	if err := os.Rename(path, filepath.Join(head, "."+fn)); err != nil {
+//		log.Printf("Can't rename a file: %s", path)
+//		return err
+//	}
+//	return nil
+//}
 
 func processLine(linesChan chan string, memcacheChans map[string]chan *memcacheItem, resChan chan results, wg *sync.WaitGroup) {
 	errors := 0
@@ -175,14 +175,14 @@ func readFile(filepath string, linesChan chan string) error {
 		log.Printf("ERROR: Can't open file: %s", filepath)
 		return err
 	}
-	//defer file.Close()
+	defer file.Close()
 	gz, err := gzip.NewReader(file)
 	log.Println("INFO:6 %s", gz)
 	if err != nil {
 		log.Printf("ERROR: Can't do new reader: %s", err)
 		return err
 	}
-	//defer gz.Close()
+	defer gz.Close()
 
 	fileScanner := bufio.NewScanner(gz)
 
@@ -198,10 +198,10 @@ func readFile(filepath string, linesChan chan string) error {
 		log.Println("INFO:Line: %s", line)
 		linesChan <- line
 	}
-	//if err := fileScanner.Err(); err != nil {
-	//	log.Printf("ERROR: Error while reading file: %s", err)
-	//	return err
-	//}
+	if err := fileScanner.Err(); err != nil {
+		log.Printf("ERROR: Error while reading file: %s", err)
+		return err
+	}
 	log.Println("INFO:read all")
 	return nil
 }
@@ -230,24 +230,11 @@ func runProcess(opts *options) error {
 		}
 		//readFile(file, linesChan)
 		log.Println("INFO:8 file")
-		err1 := dotRename(file)
-		if err1 != nil {
-			return err1
-		}
+		dotRename(file)
 	}
 
 	resultsChan := make(chan results)
 	memcacheChans := make(map[string]chan *memcacheItem)
-	log.Println("INFO:going opts.nworkers ")
-
-	var wgProc sync.WaitGroup
-
-	log.Println("INFO:going go processLine", opts.nworkers)
-	for i := 0; i < opts.nworkers; i++ {
-		log.Println("INFO:go processLine", opts.nworkers)
-		wgProc.Add(1)
-		go processLine(linesChan, memcacheChans, resultsChan, &wgProc)
-	}
 
 	var wgMemc sync.WaitGroup
 
@@ -259,6 +246,17 @@ func runProcess(opts *options) error {
 		log.Println("INFO:go memc")
 		wgMemc.Add(1)
 		go memcacheStore(mcache, memcacheChans[devType], resultsChan, &wgMemc)
+	}
+
+	log.Println("INFO:going opts.nworkers ")
+
+	var wgProc sync.WaitGroup
+
+	log.Println("INFO:going go processLine", opts.nworkers)
+	for i := 0; i < opts.nworkers; i++ {
+		log.Println("INFO:go processLine", opts.nworkers)
+		wgProc.Add(1)
+		go processLine(linesChan, memcacheChans, resultsChan, &wgProc)
 	}
 
 	wgProc.Wait()
