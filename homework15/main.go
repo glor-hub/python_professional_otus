@@ -82,6 +82,8 @@ func parseAppsInstalled(line string) *appsInstalled {
 		}
 		apps = append(apps, uint32(appId))
 	}
+	log.Printf("INFO: appsInstalled structure: devType %s, devId %s, lat %f, lon %f, apps %s",
+		devType, devId, lat, lon, apps)
 
 	return &appsInstalled{
 		devType: devType,
@@ -124,25 +126,19 @@ func memcacheStore(mcClient *memcache.Client, ItemsChan chan *memcacheItem, resu
 	resultsChan <- results{errors, processed}
 }
 
-func dotRename(file string) {
-	head, filename := filepath.Split(file)
-	newfilename := filepath.Join(head, ".", filename)
-	os.Rename(filename, newfilename)
+func dotRename(path string) error {
+	head := filepath.Dir(path)
+	fn := filepath.Base(path)
+	if err := os.Rename(path, filepath.Join(head, "."+fn)); err != nil {
+		log.Printf("Can't rename a file: %s", path)
+		return err
+	}
+	return nil
 }
 
-//func dotRename(path string) error {
-//	head := filepath.Dir(path)
-//	fn := filepath.Base(path)
-//	if err := os.Rename(path, filepath.Join(head, "."+fn)); err != nil {
-//		log.Printf("Can't rename a file: %s", path)
-//		return err
-//	}
-//	return nil
-//}
-
 func processLine(linesChan chan string, memcacheChans map[string]chan *memcacheItem, resChan chan results, wg *sync.WaitGroup) {
-	errors := 0
 	defer wg.Done()
+	errors := 0
 	for line := range linesChan {
 		log.Printf("INFO:Line: %s", line)
 		appsInstalled := parseAppsInstalled(line)
@@ -161,8 +157,8 @@ func processLine(linesChan chan string, memcacheChans map[string]chan *memcacheI
 			errors += 1
 			continue
 		}
-		log.Println("INFO:item: %s", item)
 		mcChan <- item
+		log.Println("INFO: item in channel", item)
 	}
 	resChan <- results{errors: errors, processed: 0}
 }
@@ -170,14 +166,12 @@ func processLine(linesChan chan string, memcacheChans map[string]chan *memcacheI
 func readFile(filepath string, linesChan chan string) error {
 	log.Println("INFO: Start processing file:", filepath)
 	file, err := os.Open(filepath)
-	log.Println("INFO:5 %s", file)
 	if err != nil {
 		log.Printf("ERROR: Can't open file: %s", filepath)
 		return err
 	}
 	defer file.Close()
 	gz, err := gzip.NewReader(file)
-	log.Println("INFO:6 %s", gz)
 	if err != nil {
 		log.Printf("ERROR: Can't do new reader: %s", err)
 		return err
@@ -190,7 +184,6 @@ func readFile(filepath string, linesChan chan string) error {
 	for fileScanner.Scan() {
 		line := fileScanner.Text()
 		line = strings.Trim(line, " ")
-		log.Println("INFO:7Line: %s", line)
 		if line == "" {
 			log.Println("INFO:continue9 ")
 			continue
@@ -213,15 +206,38 @@ func runProcess(opts *options) error {
 		"adid": opts.adid,
 		"dvid": opts.dvid,
 	}
-	log.Println("INFO:1")
+	linesChan := make(chan string, opts.chanBuf)
+	resultsMcChan := make(chan results)
+	resultsProcChan := make(chan results)
+	memcacheChans := make(map[string]chan *memcacheItem)
+	var wgMemc sync.WaitGroup
+
+	log.Println(len(deviceMemc))
+
+	for devType, memcAddr := range deviceMemc {
+		memcacheChans[devType] = make(chan *memcacheItem, opts.chanBuf)
+		mcClient := memcache.New(memcAddr)
+		log.Println("INFO:go memcache channel for memcAddr %s", memcAddr)
+		wgMemc.Add(1)
+		go memcacheStore(mcClient, memcacheChans[devType], resultsMcChan, &wgMemc)
+	}
+	var wgProc sync.WaitGroup
+
+	log.Println("INFO:going go processLine", opts.nworkers)
+	for i := 0; i < opts.nworkers; i++ {
+		log.Println("INFO:go processLine number", i)
+		wgProc.Add(1)
+		go processLine(linesChan, memcacheChans, resultsProcChan, &wgProc)
+	}
+
+	//log.Println("INFO:1")
 	files, err := filepath.Glob(opts.pattern)
-	log.Println("INFO:2")
+	//log.Println("INFO:2")
 	if err != nil {
 		log.Println("ERROR: Could not find files in directory %s", opts.pattern)
 		return err
 	}
-	log.Println("INFO:opts.chanBuf %s", opts.chanBuf)
-	linesChan := make(chan string, opts.chanBuf)
+	//log.Println("INFO:opts.chanBuf %s", opts.chanBuf)
 	for _, file := range files {
 		log.Println("INFO:3")
 		err := readFile(file, linesChan)
@@ -229,52 +245,43 @@ func runProcess(opts *options) error {
 			continue
 		}
 		//readFile(file, linesChan)
-		log.Println("INFO:8 file")
+		log.Println("INFO:File %s is processed", file)
 		dotRename(file)
 	}
 
-	resultsChan := make(chan results)
-	memcacheChans := make(map[string]chan *memcacheItem)
+	go func() {
+		log.Println("INFO:waiting for the completion of processLine() goroutines group ")
+		wgProc.Wait()
+		log.Println("INFO:processLine() goroutines group is completed")
+		close(linesChan)
+		close(resultsProcChan)
 
-	var wgMemc sync.WaitGroup
+	}()
+	//wgProc.Wait()
 
-	log.Println(len(deviceMemc))
+	go func() {
+		log.Println("INFO:waiting for the completion of memcacheStore goroutines group ")
+		wgMemc.Wait()
+		log.Println("INFO:processLine() memcacheStore goroutines group is completed")
+		for _, mcChan := range memcacheChans {
+			close(mcChan)
+		}
+		close(resultsMcChan)
+	}()
+	//wgMemc.Wait()
 
-	for devType, memcAddr := range deviceMemc {
-		memcacheChans[devType] = make(chan *memcacheItem, opts.chanBuf)
-		mcache := memcache.New(memcAddr)
-		log.Println("INFO:go memc")
-		wgMemc.Add(1)
-		go memcacheStore(mcache, memcacheChans[devType], resultsChan, &wgMemc)
-	}
-
-	log.Println("INFO:going opts.nworkers ")
-
-	var wgProc sync.WaitGroup
-
-	log.Println("INFO:going go processLine", opts.nworkers)
-	for i := 0; i < opts.nworkers; i++ {
-		log.Println("INFO:go processLine", opts.nworkers)
-		wgProc.Add(1)
-		go processLine(linesChan, memcacheChans, resultsChan, &wgProc)
-	}
-
-	wgProc.Wait()
-	wgMemc.Wait()
-
-	close(linesChan)
-	for _, mcChan := range memcacheChans {
-		close(mcChan)
-	}
-	close(resultsChan)
-
+	//close(linesChan)
+	log.Println("INFO:Closed all chans")
 	processed := 0
 	errors := 0
-	for results := range resultsChan {
+	for results := range resultsMcChan {
 		processed += results.processed
 		errors += results.errors
 	}
-
+	for results := range resultsProcChan {
+		processed += results.processed
+		errors += results.errors
+	}
 	errRate := float32(errors) / float32(processed)
 	if errRate < NORMAL_ERR_RATE {
 		log.Printf("Acceptable error rate (%g). Successfull load\n", errRate)
@@ -285,7 +292,7 @@ func runProcess(opts *options) error {
 }
 
 func main() {
-	chanBuf := flag.Int("bufsize", 5, "bufsize")
+	chanBuf := flag.Int("bufsize", 1, "bufsize")
 	nworkers := flag.Int("nworkers", 5, "nworkers")
 	logFile := flag.String("log", "log.txt", "log")
 	dry := flag.Bool("dry", false, "dry")
@@ -316,7 +323,7 @@ func main() {
 		}
 		//log.SetOutput(f)
 
-		//defer f.Close()
+		defer f.Close()
 		log.Println(f.Name())
 	}
 	log.Println("INFO: Memcache loader started with options: %s", opts)
