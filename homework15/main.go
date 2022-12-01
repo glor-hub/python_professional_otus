@@ -263,7 +263,7 @@ func runProcess(opts *options) error {
 
 func main() {
 	chanBuf := flag.Int("bufsize", 1, "bufsize")
-	nworkers := flag.Int("nworkers", 1, "nworkers")
+	nworkers := flag.Int("nworkers", 5, "nworkers")
 	logFile := flag.String("log", "log.txt", "log")
 	dry := flag.Bool("dry", false, "dry")
 	pattern := flag.String("pattern", "data/*.tsv.gz", "Directory to search the files")
@@ -291,7 +291,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		//log.SetOutput(f)
+		log.SetOutput(f)
 
 		defer f.Close()
 		log.Println(f.Name())
