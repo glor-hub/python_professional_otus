@@ -23,7 +23,7 @@
     <li><a href="{% url "accounts:signup" %}">Signup</a></li>
     {% else %}
     <li><a href="{% url "accounts:logout" %}">Logout</a></li>
-    <li><a href="{% url "accounts:settings" user.pk %}">{{user.username}}</a></li>
+    <li><a href="{% url "accounts:profile" user.pk %}">{{user.username}}</a></li>
     {% endif %}
     <img src={{account.get_avatar}} />
 </ul>
