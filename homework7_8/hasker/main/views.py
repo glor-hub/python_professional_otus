@@ -6,6 +6,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q
 
 from django.shortcuts import get_object_or_404
@@ -132,6 +133,7 @@ class QuestionView(FormMixin, QuestionDetailView):
         self.get_favorite_answer(question)
         return context
 
+    @transaction.atomic
     def get_answer_vote_process(self):
         a_dislike = self.request.GET.get('a_dislike')
         a_like = self.request.GET.get('a_like')
@@ -159,6 +161,7 @@ class QuestionView(FormMixin, QuestionDetailView):
                 answer.save()
                 answer_vote.save()
 
+    @transaction.atomic
     def get_question_vote_process(self, question):
         q_dislike = self.request.GET.get('q_dislike')
         q_like = self.request.GET.get('q_like')
@@ -186,6 +189,7 @@ class QuestionView(FormMixin, QuestionDetailView):
                 question.save()
                 question_vote.save()
 
+    @transaction.atomic
     def get_favorite_answer(self, question):
         non_favor = self.request.GET.get('non_favor')
         favor = self.request.GET.get('favor')

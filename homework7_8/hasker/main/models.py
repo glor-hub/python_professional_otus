@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
@@ -34,6 +34,7 @@ class Answer(models.Model):
     def __str__(self):
         return f"answer id={self.pk}: {self.body}"
 
+    @transaction.atomic
     def save(self, *args, **kwargs):
         self.votes_total = self.votes_like - self.votes_dislike
         if self.votes_total < 0:
