@@ -7,33 +7,33 @@
         {% endblock %}
     </title>
     <h1>
-      <a href="{% url "main:index" %}">Hasker</a>
+        <a href="{% url " main:index" %}">Hasker</a>
     </h1>
 
     <form action="{% url 'main:question_search_list_view' %}">
-        <input type="search"  name="q" placeholder="Search">
-        <input type="submit"  value="Find">
-  </form>
+        <input type="search" name="q" placeholder="Search">
+        <input type="submit" value="Find">
+    </form>
 
 </head>
 <body>
 <ul>
     {% if user.is_anonymous %}
-    <li><a href="{% url "accounts:login" %}">Login</a></li>
-    <li><a href="{% url "accounts:signup" %}">Signup</a></li>
+        <li><a href="{% url " accounts:login" %}">Login</a></li>
+        <li><a href="{% url " accounts:signup" %}">Signup</a></li>
     {% else %}
-    <li><a href="{% url "accounts:logout" %}">Logout</a></li>
-    <li><a href="{% url "accounts:profile" user.pk %}">{{user.username}}</a></li>
+        <li><a href="{% url " accounts:logout" %}">Logout</a></li>
+        <li><a href="{% url " accounts:profile" user.pk %}">{{user.username}}</a></li>
     {% endif %}
-    <img src={{account.get_avatar}} />
+    <img src={{account.get_avatar}}/>
 </ul>
 <ul>
     {% if messages %}
-    <ul class="messages">
-        {% for message in messages %}
-        {{message}}
-        {% endfor %}
-    </ul>
+        <ul class="messages">
+            {% for message in messages %}
+                {{message}}
+            {% endfor %}
+        </ul>
     {% endif %}
 </ul>
 
@@ -41,11 +41,11 @@
 {% endblock %}
 
 {% block ask %}
-{% if user.is_anonymous %}
-<li><a href="{% url "accounts:signup" %}">Ask!</a></li>
-{% else %}
-<li><a href="{% url "main:question_create" %}">Ask!</a></li>
-{% endif %}
+    {% if user.is_anonymous %}
+        <li><a href="{% url " accounts:signup" %}">Ask!</a></li>
+    {% else %}
+        <li><a href="{% url " main:question_create" %}">Ask!</a></li>
+    {% endif %}
 {% endblock %}
 </body>
 
