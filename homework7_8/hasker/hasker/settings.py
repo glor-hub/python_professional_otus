@@ -135,6 +135,8 @@ EMAIL_HOST_USER = 'sorinainna29@gmail.com'
 EMAIL_HOST_PASSWORD = 'XM9wB19u'
 EMAIL_PORT = 587
 
-DEFAULT_RECIPIENTS_EMAIL = ['sorinainna29@gmail.com',]
+DEFAULT_RECIPIENTS_EMAIL = ['sorinainna29@gmail.com', ]
 DEFAULT_FROM_EMAIL = 'sorinainna29@gmail.com'
 LOCALHOST = " http://127.0.0.1:8000"
+
+HASKER_TAGS_LENGTH = 3
