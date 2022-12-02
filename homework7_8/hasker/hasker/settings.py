@@ -1,6 +1,11 @@
 from pathlib import Path
 import os
 
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -8,12 +13,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-_m90j+_74eo20s17fgwi&7sq593fc4^@%e6j3we(1zim!6y=1z'
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS")
 
 # Application definition
 
@@ -68,8 +74,8 @@ WSGI_APPLICATION = 'hasker.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': os.environ.get("DB_ENGINE"),
+        'NAME': BASE_DIR / os.environ.get("DB_NAME"),
     }
 }
 
@@ -128,12 +134,11 @@ LOGIN_REDIRECT_URL = '/hasker/'
 LOGOUT_REDIRECT_URL = '/hasker/'
 
 USE_EMAIL_NOTIFICATION = False
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_USE_TLS = True
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_HOST_USER = 'sorinainna29@gmail.com'
-EMAIL_HOST_PASSWORD = 'XM9wB19u'
-EMAIL_PORT = 587
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND")
+EMAIL_HOST = os.environ.get("EMAIL_HOST")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
+EMAIL_PORT = os.environ.get("EMAIL_PORT")
 
 DEFAULT_RECIPIENTS_EMAIL = ['sorinainna29@gmail.com', ]
 DEFAULT_FROM_EMAIL = 'sorinainna29@gmail.com'
