@@ -5,15 +5,13 @@ from django.utils.text import slugify
 
 from accounts.models import Account
 
-LIKE = 'L'
-DISLIKE = 'D'
-NONE = 'N'
+from .constans import LIKE, DISLIKE, NONE
+
 STATUS = [
     (LIKE, 'Like'),
     (DISLIKE, 'Dislike'),
     (NONE, 'None')
 ]
-
 
 class Tag(models.Model):
     title = models.CharField(max_length=32)
