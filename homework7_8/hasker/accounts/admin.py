@@ -1,11 +1,11 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from siteauth.models import SiteUser
+from accounts.models import Account
 
 
-class SiteUserAdmin(UserAdmin):
+class AccountAdmin(UserAdmin):
     list_display = ('username', 'email', 'avatar', 'date_joined',)
 
 
-admin.site.register(SiteUser, SiteUserAdmin)
+admin.site.register(Account, AccountAdmin)

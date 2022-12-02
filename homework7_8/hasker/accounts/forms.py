@@ -1,16 +1,16 @@
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
 
 
-from .models import SiteUser
+from .models import Account
 
 
-class SiteUserCreateForm(UserCreationForm):
+class AccountCreateForm(UserCreationForm):
     class Meta:
-        model = SiteUser
+        model = Account
         fields = ('username', 'email', 'password1', 'password2', 'avatar')
 
-class SiteUserUpdateForm(UserChangeForm):
+class AccountUpdateForm(UserChangeForm):
     password =None
     class Meta:
-        model = SiteUser
+        model = Account
         fields = ('username', 'email', 'avatar')

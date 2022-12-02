@@ -3,7 +3,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
 
-from siteauth.models import SiteUser
+from accounts.models import Account
 
 LIKE = 'L'
 DISLIKE = 'D'
@@ -25,7 +25,7 @@ class Tag(models.Model):
 class Answer(models.Model):
     body = models.TextField(unique=True)
     create_at = models.DateTimeField(default=timezone.now)
-    user = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
+    user = models.ForeignKey(Account, on_delete=models.CASCADE)
     question = models.ForeignKey('Question', on_delete=models.CASCADE)
     votes_total = models.IntegerField(default=0)
     rating = models.IntegerField(default=0)
@@ -53,7 +53,7 @@ class Question(models.Model):
     slug = models.SlugField(max_length=256, null=False, unique=True)
     body = models.TextField()
     create_at = models.DateTimeField(default=timezone.now)
-    author = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
+    author = models.ForeignKey(Account, on_delete=models.CASCADE)
     votes_total = models.IntegerField(default=0)
     rating = models.IntegerField(default=0)
     votes_like = models.PositiveIntegerField(default=0)
@@ -84,7 +84,7 @@ class Question(models.Model):
 
 
 class QuestionVote(models.Model):
-    user = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
+    user = models.ForeignKey(Account, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     status = models.CharField(max_length=1, choices=STATUS, default='N')
     event_dislike = models.BooleanField(default=False)
@@ -111,7 +111,7 @@ class QuestionVote(models.Model):
 
 
 class AnswerVote(models.Model):
-    user = models.ForeignKey(SiteUser, on_delete=models.CASCADE)
+    user = models.ForeignKey(Account, on_delete=models.CASCADE)
     answer = models.ForeignKey(Answer, on_delete=models.CASCADE)
     status = models.CharField(max_length=1, choices=STATUS, default='N')
     event_dislike = models.BooleanField(default=False)

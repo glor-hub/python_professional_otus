@@ -41,7 +41,7 @@ INSTALLED_APPS = [
 
     # own
     'main.apps.MainConfig',
-    'siteauth.apps.SiteAuthConfig',
+    'accounts.apps.AccountsConfig',
 ]
 
 MIDDLEWARE = [
@@ -133,9 +133,9 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-AUTH_USER_MODEL = 'siteauth.SiteUser'
+AUTH_USER_MODEL = 'accounts.Account'
 
-LOGIN_URL = 'siteauth/login/'
+LOGIN_URL = 'accounts/login/'
 LOGIN_REDIRECT_URL = '/hasker/'
 LOGOUT_REDIRECT_URL = '/hasker/'
 

@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class SiteAuthConfig(AppConfig):
+class AccountsConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'siteauth'
+    name = 'accounts'

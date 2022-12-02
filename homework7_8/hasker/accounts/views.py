@@ -1,18 +1,18 @@
 from django.views.generic import CreateView, UpdateView
 from django.contrib import messages
 
-from .forms import SiteUserCreateForm
-from .forms import SiteUserUpdateForm
+from .forms import AccountCreateForm
+from .forms import AccountUpdateForm
 
-from .models import SiteUser
+from .models import Account
 
 
-class SiteUserCreateView(CreateView):
-    model = SiteUser
+class AccountCreateView(CreateView):
+    model = Account
     success_url = '/hasker/'
-    form_class = SiteUserCreateForm
+    form_class = AccountCreateForm
 
-class SiteUserActionMixin:
+class AccountActionMixin:
     @property
     def success_msg(self):
         return NotImplemented
@@ -22,10 +22,10 @@ class SiteUserActionMixin:
         return super().form_valid(form)
 
 
-class SiteUserUpdateView(SiteUserActionMixin,
+class AccountUpdateView(AccountActionMixin,
                          UpdateView):
-    model = SiteUser
+    model = Account
     success_url = '/hasker/'
     success_msg = "User`s data updated!"
-    form_class = SiteUserUpdateForm
+    form_class = AccountUpdateForm
 
