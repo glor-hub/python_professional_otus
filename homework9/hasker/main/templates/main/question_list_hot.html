@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %} {{ title }}
+{% endblock %}
+{% block main_content %}
+
+<ul>
+    <li><a href="{% url 'main:index' %}">New Questions|</a>
+        Hot Questions</li>
+
+    {% include "base_question.html" %}
+
+</ul>
+
+ {% include "paginator.html" with page=page_obj %}
+
+{% endblock %}

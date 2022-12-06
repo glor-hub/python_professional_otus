@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %} {{ title }}
+{% endblock %}
+{% block main_content %}
+
+<ul>
+    <p>Question:</p>
+    <ul>title: {{question.title}}</ul>
+    <ul>body: {{question.body}}</ul>
+    <a href="?q_dislike={{True}}" style="text-decoration: none;">-</a>
+
+        likes summary: {{question.votes_total}}
+
+        <a href="?q_like={{True}}" style="text-decoration: none;">+</a>
+
+    <p>Answers:</p>
+    {% for obj in answers_list %}
+    <ul>
+
+        <a href="?a_dislike={{True}}&a_pk={{obj.pk}}" style="text-decoration: none;">-</a>
+
+        likes summary: {{obj.votes_total}}
+
+        <a href="?a_like={{True}}&a_pk={{obj.pk}}" style="text-decoration: none;">+</a>
+
+        <a href="?non_favor={{True}}&a_pk={{obj.pk}}" style="text-decoration: none;">-</a>
+        {%if obj.is_favorite %}
+        *
+        {% endif %}
+        <a href="?favor={{True}}&a_pk={{obj.pk}}" style="text-decoration: none;">+</a>
+
+        {{obj.body}}
+    </ul>
+    <br>
+    {% endfor %}
+
+
+    {% include "paginator.html" %}
+
+    <p>Trending</p>
+    {% for obj in max_ratings_list %}
+    <ul> {{obj.rating}} {{obj.title}}</ul>
+    {% endfor %}
+
+</ul>
+
+<div>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <input type="submit" value="Submit!">
+    </form>
+</div>
+
+
+{% endblock %}
