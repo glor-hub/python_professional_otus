@@ -7,6 +7,7 @@ from hasker.settings import DEBUG
 urlpatterns = [
     path('hasker/', include('main.urls', namespace='main')),
     path('accounts/', include('accounts.urls', namespace='accounts')),
+    path('api/', include('hasker.api_urls', namespace='api')),
     path('admin/', admin.site.urls),
 ]
 
